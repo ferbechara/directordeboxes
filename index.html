@@ -773,7 +773,7 @@ function tblDrivers(){const a=[];G.teams.forEach((t,ti)=>t.dr.forEach(d=>a.push(
 function head(){const sh=shared(),t=(G.me!=null&&!sh)?G.teams[G.me]:null;
   return '<div class="row" style="justify-content:space-between"><div><h1>🏎️ Director de Boxes</h1>'+(t?'<div class="sm">'+(G.np>1?G.names[G.cur]+' · ':'')+dot(t.c)+t.n+' · Temporada '+G.s+'</div>':(sh?'<div class="sm">Modo multijugador · Temporada '+G.s+'</div>':''))+'</div>'+(t?'<div style="text-align:right"><div class="sm">Presupuesto</div><b style="font-size:20px" class="'+(G.bud<0?'neg':'')+'">$'+f1(G.bud)+' M</b><div class="sm">🔒 '+f1(fin().blk)+' M bloqueado · 🔓 <b>'+f1(Math.max(0,fin().free))+' M</b> disponible</div></div>':'')+'</div>'}
 const edBtn=()=>'<div class="card"><h2>✏️ Editor</h2><div class="sm">Editá nombres de escuderías y pilotos, edades, estilos, niveles y perfil de colaboración antes de empezar.</div><div class="row" style="margin-top:8px"><button onclick="openEd()">Abrir editor de escuderías y pilotos</button></div></div>';
-function vStart(){if(!G.np)return vPlayers()+edBtn();return vStart0()+edBtn()}
+function vStart(){const stN='<p class="sm" style="text-align:center;opacity:.75;margin:10px 0">📊 Este juego registra estadísticas anónimas de uso (tiempo de juego, secciones visitadas y errores) para poder mejorarlo. No se guarda ningún dato personal.</p>';if(!G.np)return vPlayers()+edBtn()+stN;return vStart0()+edBtn()+stN}
 function vStart0(){
   return head()+'<section class="mm-hero"><div class="mm-hero-copy"><div class="mm-kicker">Director de Boxes · Experiencia de jefe de equipo</div><h2>El muro de boxes <em>en tus manos.</em></h2><p>Diseñá tu auto, desarrollá a tus pilotos y tomá las decisiones que pueden convertir a una escudería en campeona.</p><div class="mm-hero-tag">Tu equipo · Tu estrategia · Tu legado</div></div></section><div class="card mm-start-card"><h2>'+(G.np>1?G.names[G.cur]+', elegí':'Elegí')+' tu escudería</h2><p class="sm">Temporada de '+CIRC.length+' carreras. Las escuderías de abajo parten con menos nivel, pero también tienen más margen para mejorar.</p><div class="wrap"><table class="mm-team-table"><tr><th>Escudería</th><th>Motor</th><th>Aero</th><th>Chasis</th><th>Pilotos</th><th></th></tr>'+
   G.teams.map((t,i)=>'<tr><td>'+dot(t.c)+'<b>'+t.n+'</b></td><td>'+t.car[0]+'</td><td>'+t.car[1]+'</td><td>'+t.car[2]+'</td><td>'+t.dr.map(d=>d.n+' ('+d.s+')').join(', ')+'</td><td>'+(isH(i)?'<span class="sm">Elegida por '+G.names[hk(i)]+'</span>':'<button onclick="pick('+i+')">Elegir escudería</button>')+'</td></tr>').join('')+'</table></div></div>'}
@@ -954,7 +954,38 @@ let lastK=null;
 const viewKey=()=>[G.phase,G.tab,edOpen,G.hold,G.cur,G.race,G.live?G.live.sec:'',G.q?G.q.seg:''].join('|');
 function render(){const sy=window.scrollY||(document.documentElement&&document.documentElement.scrollTop)||0,k=viewKey();render0();if(k===lastK)window.scrollTo(0,sy);lastK=viewKey()}
 function render0(){if(G.np>1&&G.hold&&TURNPH.includes(G.phase)){$('app').innerHTML=vHold();window.scrollTo(0,0);return}if(edOpen&&(G.phase=='start'||G.phase=='main')){$('app').innerHTML=vEdit();window.scrollTo(0,0);return}edOpen=false;const v=G.phase=='start'?vStart:G.phase=='main'?vMain:G.phase=='quali'?vQuali:G.phase=='grid'?vGrid:G.phase=='race'?vRace:G.phase=='result'?vResult:G.phase=='market'?vMarket:vEnd;$('app').innerHTML=v();window.scrollTo(0,0)}
+
+// ===== Estadísticas anónimas de uso (Google Sheets + Apps Script) =====
+// Envía: inicio de sesión, minutos activos (solo con la pestaña visible) y eventos de la partida.
+// No se envía ningún dato personal: el jugador se identifica con un código al azar guardado en este navegador.
+// Si ST_URL está vacío, no se envía nada.
+const ST_URL='https://script.google.com/macros/s/AKfycby8cTnK8JijFFI6Fr_HbWiWxrkYSEOh3UcLh5zUKz1LRwWK-YA4goRE5u-v76yQFuwL/exec',ST_KEY='ddb-2026',ST_VER='DdB-1.2';
+const stId=()=>'x'+Math.random().toString(36).slice(2,10)+Date.now().toString(36);
+const ST_PID=(()=>{try{let v=localStorage.getItem('ddb_pid');if(!v){v=stId();localStorage.setItem('ddb_pid',v)}return v}catch(e){return stId()}})(),ST_SID=stId();
+function stSend(o){if(!ST_URL)return;try{const b=JSON.stringify(Object.assign({k:ST_KEY,pid:ST_PID,sid:ST_SID},o));
+  fetch(ST_URL,{method:'POST',mode:'no-cors',keepalive:b.length<60000,headers:{'Content-Type':'text/plain;charset=utf-8'},body:b}).catch(()=>{})}catch(e){}}
+const ST_PH={main:'Fin de semana',quali:'Clasificación',grid:'Parrilla',race:'Carrera',result:'Resultado',market:'Mercado de pilotos',end:'Fin de temporada',start:'Inicio'};
+function stCtx(){try{const t=G&&G.teams&&G.me!=null?G.teams[G.me]:null;return{club:t?t.n:'',s:G?G.s:'',w:G&&G.race!=null?G.race+1:'',n:G?G.np:'',mode:G?(ST_PH[G.phase]||G.phase):''}}catch(e){return{}}}
+function stEv(ev,det){stSend(Object.assign({t:'ev',ev,det:det||''},stCtx()))}
+stSend({t:'ses',dev:/iPad|Tablet/i.test(navigator.userAgent)||(/Android/i.test(navigator.userAgent)&&!/Mobile/i.test(navigator.userAgent))?'Tablet':/Mobi|Android|iPhone/i.test(navigator.userAgent)?'Celular':'Computadora',scr:screen.width+'x'+screen.height,lang:navigator.language||'',ver:ST_VER});
+let stAct=0,stMin=0;
+setInterval(()=>{if(document.visibilityState!=='visible')return;stAct+=15;const m=Math.floor(stAct/60);if(m>stMin){stMin=m;stSend({t:'hb',m})}},15000);
+const stErrs=new Set();
+function stErr(m){m=String(m||'').slice(0,250);if(!m||stErrs.has(m)||stErrs.size>=10)return;stErrs.add(m);stEv('error',m)}
+window.addEventListener('error',e=>stErr((e.message||'Error')+(e.lineno?' (línea '+e.lineno+')':'')));
+window.addEventListener('unhandledrejection',e=>stErr('Promesa: '+(e.reason&&e.reason.message||e.reason)));
+// Eventos de la partida (se envuelven funciones existentes sin cambiar su comportamiento)
+(()=>{const o=pick;pick=function(){const ph=G.phase;o.apply(this,arguments);if(ph==='start'&&G.phase==='main')stEv('nueva_partida',(G.np>1?G.np+' managers':'1 manager'))}})();
+(()=>{const o=finishRace;finishRace=function(){const c=(typeof CIRC!=='undefined'&&CIRC[G.race])?CIRC[G.race][0]:'';o.apply(this,arguments);stEv('carrera_terminada',c)}})();
+(()=>{const o=newSeason;newSeason=function(){const s0=G.s;o.apply(this,arguments);if(G.s>s0)stEv('fin_temporada','Empieza la temporada '+G.s)}})();
+// Secciones visitadas (cada una se registra una vez por sesión)
+const stSec=new Set();
+(()=>{const o=render;render=function(){o.apply(this,arguments);try{if(!G||G.phase==='start')return;
+  const k=(typeof edOpen!=='undefined'&&edOpen)?'Editor':G.phase==='main'?(G.tab==='dr'?'Pilotos y Promesas':G.tab==='fin'?'Finanzas':'Fin de semana'):(ST_PH[G.phase]||G.phase);
+  if(!stSec.has(k)){stSec.add(k);stEv('seccion',k)}}catch(e){}}})();
+
 G=load()||fresh();if(!G.teams||!G.phase||(G.phase=='race'&&(!G.live||G.live.ent[0].skill==null))||(G.phase=='quali'&&!G.q)||(G.phase=='grid'&&!G.grid))G=fresh();if(!G.P){G.hum=G.me!=null?[G.me]:[];G.np=G.me!=null?1:0;G.names=['Jugador 1'];G.cur=0;G.P=[mkP()];PF.forEach(f=>G.P[0][f]=G[f])}if(G.hold==null)G.hold=false;if(!G.comp)G.comp=[1,1];if(!G.qpush)G.qpush=[1,1];if(!G.wx)G.wx=genWx();ensure();render();
+try{if(G.phase!=='start')stEv('continuar_partida')}catch(e){}
 </script>
 </body>
 </html>
