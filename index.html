@@ -24,6 +24,7 @@ button.big{background:var(--acc);color:#fff;border-color:var(--acc);font-weight:
 th{font-size:12px;color:var(--mut);font-weight:600}tr.me td{background:var(--hl)}
 .dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}
 .pos{color:var(--ok)}.neg{color:var(--bad)}
+.popbg{position:fixed;inset:0;z-index:9999;background:rgba(3,6,10,.78);display:flex;align-items:center;justify-content:center;padding:16px;animation:popf .25s ease}.popc{background:var(--card);border:2px solid var(--acc);border-radius:16px;padding:22px 20px;max-width:420px;width:100%;text-align:center;box-shadow:0 0 40px rgba(225,6,0,.35);animation:popz .3s ease}.popi{font-size:54px;line-height:1.1}.popc h2{margin:6px 0 8px;font-size:22px}.pops{color:var(--mut);margin-bottom:14px;line-height:1.45}.pops b{color:var(--fg)}@keyframes popf{from{opacity:0}to{opacity:1}}@keyframes popz{from{transform:scale(.85)}to{transform:scale(1)}}
 </style>
 <style id="mini-manager-f1-redesign">
 
@@ -428,7 +429,7 @@ function favSt(d){if(d.fs==null&&FSO[d.n]!=null)d.fs=FSO[d.n];if(d.fs==null){let
 const fsMod=(d,st)=>FSM[Math.abs(favSt(d)-st)];
 const fsMk=(d,st)=>favSt(d)==st?' <span class="pos">✔</span>':' <span class="neg">✖</span>';
 const fsInfoQ=(d,st)=>{const m=fsMod(d,st);return '<div class="sm">★ Ritmo favorito: <b>'+QN[favSt(d)]+'</b> · '+(m>0?'<b class="pos">coincide: rinde más</b>':m>-1?'<b class="neg">no coincide: rinde algo menos</b>':'<b class="neg">es el opuesto a su estilo: rinde bastante menos</b>')+'</div>'};
-const fsInfo=(d,st)=>{const m=fsMod(d,st);return '<div class="sm">★ Estilo favorito: <b>'+STY[favSt(d)]+'</b> · '+(m>0?'<b class="pos">coincide: rinde más</b>':m>-1?'<b class="neg">no coincide: rinde algo menos</b>':'<b class="neg">es el opuesto a su estilo: rinde bastante menos</b>')+'</div>'};
+const fsInfo=(d,st)=>{const m=fsMod(d,st),xp=xpOf(d);return '<div class="sm">🎓 Experiencia: <b>'+Math.round(xp)+'</b>'+(xp<40?' · inexperto: más propenso a errores':xp>=75?' · veterano: comete pocos errores':'')+'<br>★ Estilo favorito: <b>'+STY[favSt(d)]+'</b> · '+(m>0?'<b class="pos">coincide: rinde más</b>':m>-1?'<b class="neg">no coincide: rinde algo menos</b>':'<b class="neg">es el opuesto a su estilo: rinde bastante menos</b>')+'</div>'};
 const STYD=['Menos ritmo, poco azar y casi sin riesgo de abandono.','Ritmo y riesgo equilibrados.','Más ritmo pero mucho más azar, riesgo de abandono y desgaste de neumáticos.'];
 const PTS=[25,18,15,12,10,8,6,4,2,1],PRIZE=[40,30,24,18,14,11,8,6,4,3,2],KEY='f1m_v2';
 // ---------- TECNOLOGÍA / I+D ----------
@@ -448,14 +449,15 @@ let G=null,resetArm=false;
 // ---------- MULTIJUGADOR (hasta 4 jugadores en el mismo dispositivo) ----------
 // Cada jugador tiene su escudería y su propio estado (presupuesto, estilos, estrategia, setup, mercado). El estado del jugador activo se carga en G
 // (G.me, G.bud, G.style...) para que todo el juego existente siga funcionando igual; los turnos se pasan con saveP()/loadP().
-const PF=['me','bud','style','strat','comp','qpush','setup','tab','note','spon','loans','offers','tp'];
+const BUD0=75;// presupuesto inicial de cada escudería (M)
+const PF=['me','bud','style','strat','comp','qpush','setup','tab','note','spon','loans','offers','tp','crew','pr','qt','lim','eng'];
 let SN=1,NM=['Jugador 1','Jugador 2','Jugador 3','Jugador 4'],askLeave=false;
 const isH=ti=>!!G.hum&&G.hum.includes(ti),hk=ti=>G.hum.indexOf(ti);
 const shared=()=>G.np>1&&['result','end'].includes(G.phase);
 const TURNPH=['main','grid','market','quali','race'];
 const qAlive=k=>!!G.q&&G.q.ents.some(e=>e.ti==G.hum[k]&&!e.pos),rAlive=k=>!!G.live&&G.live.ent.some(e=>e.ti==G.hum[k]&&!e.dnf);
 const qNext=()=>{let n=G.cur+1;while(n<G.np&&!qAlive(n))n++;return n},rNext=()=>{let n=G.cur+1;while(n<G.np&&!rAlive(n))n++;return n};
-function mkP(){return{tp:0,me:null,bud:40,style:[1,1],strat:[1,1],comp:[1,1],qpush:[1,1],setup:0,tab:'wk',note:'',spon:{main:null,s1:null,s2:null},loans:[],offers:null}}
+function mkP(){return{tp:0,me:null,bud:BUD0,style:[1,1],strat:[1,1],comp:[1,1],qpush:[1,1],setup:0,tab:'wk',note:'',spon:{main:null,s1:null,s2:null},loans:[],offers:null,crew:startCrew(),pr:null,qt:0,lim:null,eng:{w:0,u:1,pn:0}}}
 function saveP(){if(!G.P||!G.P[G.cur])return;const p=G.P[G.cur];PF.forEach(f=>p[f]=G[f]);(G.f2||[]).forEach(d=>{if(d.own)d.ow=G.cur+1;else if(d.ow==G.cur+1)d.ow=0})}
 function loadP(k){G.cur=k;const p=G.P[k];PF.forEach(f=>G[f]=p[f]);(G.f2||[]).forEach(d=>{d.own=d.ow==k+1})}
 function passTo(k){saveP();loadP(k);G.hold=G.np>1;save();render()}
@@ -479,7 +481,7 @@ function leaveGame(k){askLeave=false;if(G.np<2||k<0||k>=G.np)return;
   if(turn&&!wasLast)G.hold=G.np>1;else G.hold=false;
   if(wasLast){if(ph=='main'){startQuali();return}if(ph=='grid'){startRace();return}if(ph=='market'){closeMarket();return}if(ph=='quali'){runSeg();return}if(ph=='race'){contRace();return}}
   save();render()}
-function finOne(m,k){return m?('<div class="card"><h2>Finanzas de la carrera</h2><div class="sm">Puntos de tu escudería: <b>'+m.pts+'</b> · Ingresos (TV/Federación + sponsors + bonos por puntos): <b>+'+f1(m.inc)+' M</b>'+(m.sp!=null?' <span class="sm">(sponsors: '+f1(m.sp)+' fijos + '+f1(m.bn)+' por puntos)</span>':'')+' · Sueldos de pilotos: <b>−'+f1(m.sl)+' M</b> · Gastos fijos: <b>−'+f1(m.fix)+' M</b>'+(m.lp?' · Cuotas de préstamo: <b>−'+f1(m.lp)+' M</b>':'')+' · Neto: <b class="'+(m.net>=0?'pos':'neg')+'">'+(m.net>=0?'+':'−')+f1(Math.abs(m.net))+' M</b></div></div>').replace('Finanzas de la carrera',G.np>1?'Finanzas de la carrera · '+G.names[k]+' ('+G.teams[G.hum[k]].n+')':'Finanzas de la carrera'):''}
+function finOne(m,k){return m?('<div class="card"><h2>Finanzas de la carrera</h2><div class="sm">Puntos de tu escudería: <b>'+m.pts+'</b> · Ingresos (TV/Federación + sponsors + bonos por puntos): <b>+'+f1(m.inc)+' M</b>'+(m.sp!=null?' <span class="sm">(sponsors: '+f1(m.sp)+' fijos + '+f1(m.bn)+' por puntos)</span>':'')+' · Sueldos de pilotos: <b>−'+f1(m.sl)+' M</b> · Gastos fijos: <b>−'+f1(m.fix)+' M</b>'+(m.cw?' · Mecánicos: <b>−'+f1(m.cw)+' M</b>':'')+(m.dm?' · Daños y reparaciones: <b>−'+f1(m.dm)+' M</b>':'')+(m.lp?' · Cuotas de préstamo: <b>−'+f1(m.lp)+' M</b>':'')+' · Neto: <b class="'+(m.net>=0?'pos':'neg')+'">'+(m.net>=0?'+':'−')+f1(Math.abs(m.net))+' M</b></div></div>').replace('Finanzas de la carrera',G.np>1?'Finanzas de la carrera · '+G.names[k]+' ('+G.teams[G.hum[k]].n+')':'Finanzas de la carrera'):''}
 
 
 // ---------- COLABORACIÓN ENTRE COMPAÑEROS ----------
@@ -570,7 +572,7 @@ function vEdit(){const inp='padding:6px;border-radius:6px;border:1px solid var(-
 const $=id=>document.getElementById(id),f1=n=>(Math.round(n*10)/10).toFixed(1);
 function save(){try{localStorage.setItem(KEY,JSON.stringify(G))}catch(e){}}
 function load(){try{const s=localStorage.getItem(KEY);return s?JSON.parse(s):null}catch(e){return null}}
-function fresh(){return{np:0,names:[],P:[],hum:[],cur:0,hold:false,s:1,me:null,bud:40,race:0,phase:'start',style:[1,1],strat:[1,1],comp:[1,1],qpush:[1,1],setup:0,wx:null,q:null,grid:null,last:null,prize:0,spon:{main:null,s1:null,s2:null},loans:[],offers:null,tech:newTech(),tp:0,
+function fresh(){return{np:0,crew:startCrew(),eng:{w:0,u:1,pn:0},names:[],P:[],hum:[],cur:0,hold:false,s:1,me:null,bud:BUD0,race:0,phase:'start',style:[1,1],strat:[1,1],comp:[1,1],qpush:[1,1],setup:0,wx:null,q:null,grid:null,last:null,prize:0,spon:{main:null,s1:null,s2:null},loans:[],offers:null,tech:newTech(),tp:0,
  teams:TEAMS.map(t=>({n:t[0],c:t[1],car:t[2].slice(),rd:[0,0,0],pts:0,dr:t[3].map(d=>({n:d[0],s:d[1],pts:0,a0:d[2],fs:d[3],co:d[4]}))}))}}
 const gauss=()=>Math.sqrt(-2*Math.log(1-Math.random()))*Math.cos(2*Math.PI*Math.random());
 const carR=(t,k)=>{const w=CK[k][1];return t.car[0]*w[0]+t.car[1]*w[1]+t.car[2]*w[2]};
@@ -578,6 +580,124 @@ const carE=(t,k,su)=>{const w=CK[k][1];let r=0;for(let i=0;i<3;i++)r+=t.car[i]*(
 const upCost=(t,i)=>Math.max(1,2+(t.car[i]-55)*.2),sal=d=>.5+(d.s-60)*.05;
 // ---- pilotos: edad, potencial, contrato y sueldo; mercado y Promesas
 const R=(a,b)=>a+Math.floor(Math.random()*(b-a+1)),pk=a=>a[Math.floor(Math.random()*a.length)],clp=(v,a,b)=>Math.max(a,Math.min(b,v)),f2d=n=>(Math.round(n*100)/100).toFixed(2);
+// ---- EQUIPO DE MECÁNICOS ----
+// Hasta CREW_N mecánicos con calidad 0-100. La calidad promedio (puestos vacíos = 35) acorta las paradas y baja la chance de parada lenta.
+const CREW_N=5,MLN=['Rossi','Keller','Duarte','Okafor','Lindqvist','Moreau','Tanaka','Vargas','Novak','Haddad','Brandt','Silva','Costa','Ibarra','Petrov','Quinn','Santoro','Weber','Mendes','Aoki'];
+const mWage=q=>Math.round((.08+(q-40)*.006)*100)/100;
+const mkMech=q=>{q=q==null?R(48,88):q;return{n:String.fromCharCode(65+R(0,25))+'. '+pk(MLN),q,w:mWage(q)}};
+function startCrew(){return[mkMech(R(52,66)),mkMech(R(52,66)),mkMech(R(50,64))]}
+const genMM=()=>Array.from({length:8},()=>mkMech(R(45,92)));
+function crewQ(ti){if(isH(ti)){const k=hk(ti),c=(k==G.cur?G.crew:G.P[k].crew)||[];return(c.reduce((m,x)=>m+x.q,0)+(CREW_N-c.length)*35)/CREW_N}const t=G.teams[ti];if(t.cq==null)t.cq=R(52,74);return t.cq}
+const pitF=Q=>1-(Q-60)*.0045,pitErr=Q=>clp(.075-(Q-50)*.0013,.012,.13);
+function pitLoss(x,L){const Q=crewQ(x.ti),b=PL*(L.sc?.4:1);let loss=b*pitF(Q);
+  if(Math.random()<pitErr(Q)){const ex=b*(.5+Math.random()*.9);loss+=ex;L.log.push('Vuelta '+(L.sec*10+1)+': 🔧 parada lenta de '+G.teams[x.ti].dr[x.di].n+' ('+G.teams[x.ti].n+'): un problema con las gomas le cuesta '+(ex*.5).toFixed(1)+' s.')}
+  return loss}
+// ---- EXPERIENCIA, ERRORES Y DAÑOS ----
+// Experiencia 0-100: sube con cada carrera; aprende más rápido quien tiene margen de potencial. Poca experiencia + estilo arriesgado + gomas gastadas + lluvia = más errores.
+function xpOf(d){if(d.xp==null)d.xp=clp(Math.round(18+((d.age||24)-18)*4.5+R(-6,6)),8,92);return d.xp}
+function learnXP(){const f=d=>{const x=xpOf(d);d.xp=Math.min(100,x+clp((100-x)*.008,.15,.8)*clp(.6+((d.pot||d.s)-d.s)*.08,.4,2))};G.teams.forEach(t=>t.dr.forEach(f));(G.f2||[]).forEach(f)}
+const errP=(x,wet)=>.011*[.5,1,2.3][x.st]*(1.7-xpOf(G.teams[x.ti].dr[x.di])/100)*(wet?1.5:1)*(1+Math.min(x.age,6)*.08);
+function incident(x){const L=G.live,t=G.teams[x.ti],nm=t.dr[x.di].n,lap=L.sec*10+1+Math.floor(Math.random()*10),r=Math.random();let c=.12;
+  if(r<.55){x.sum-=2+Math.random()*3;L.log.push('Vuelta '+lap+': 🙁 error de '+nm+' ('+t.n+'): se va ancho y pierde tiempo.')}
+  else if(r<.8){x.sum-=2.5;x.fd='ala';c=.5;kp(x,'💥','Alerón dañado','toca el muro y daña el alerón. Tiene que parar a boxes para repararlo.');L.log.push('Vuelta '+lap+': 💥 '+nm+' ('+t.n+') toca el muro y daña el alerón: tiene que parar.')}
+  else if(r<.93){x.sum-=4;x.fd='pin';c=.3;kp(x,'🛞','Pinchazo','sufre un pinchazo y tiene que entrar a boxes.');L.log.push('Vuelta '+lap+': 🛞 pinchazo de '+nm+' ('+t.n+'): tiene que parar.')}
+  else{x.dnf=L.sec+1;x.dlap=lap;c=1.2;kp(x,'💥','¡Abandono por choque!','choca fuerte contra el muro y queda fuera de carrera.');L.log.push('Vuelta '+lap+': 💥 '+nm+' ('+t.n+') choca fuerte contra el muro y abandona.')}
+  (L.dmg=L.dmg||{})[x.ti]=(L.dmg[x.ti]||0)+c*clp(1.3-crewQ(x.ti)*.006,.7,1.2)}
+function repairs(L){L.ent.forEach(x=>{if(x.dnf||!x.fd)return;const ex=PL*(x.fd=='ala'?.9:.5)*clp(1-(crewQ(x.ti)-60)*.006,.6,1.3);x.sum-=ex;x.rp=(x.fd=='ala'?'🛠 Alerón dañado':'🛞 Pinchazo')+': la reparación suma '+(ex*.5).toFixed(1)+' s.';x.fd=0;if(!x.sched.includes(L.sec))x.sched.push(L.sec)})}
+// ---- MOMENTOS CLAVE (ventana emergente) ----
+const POPQ=[];
+function showPop(o){POPQ.push(o)}
+function kp(x,ic,t,b){if(x.ti==G.me)showPop({ic,t,b:'<b>'+G.teams[x.ti].dr[x.di].n+'</b> '+b})}
+function drawPop(){let e=document.getElementById('pop');if(!POPQ.length){if(e)e.remove();return}const o=POPQ[0];if(!e){e=document.createElement('div');e.id='pop';document.body.appendChild(e)}
+  e.innerHTML='<div class="popbg"><div class="popc"><div class="popi">'+o.ic+'</div><h2>'+o.t+'</h2><div class="pops">'+o.b+'</div>'+(o.acts?o.acts.map(a=>'<button class="big" style="margin:4px" onclick="'+a[1]+'">'+a[0]+'</button>').join(''):'<button class="big" onclick="closePop()">'+(POPQ.length>1?'Siguiente ('+(POPQ.length-1)+' más) ▶':'Entendido')+'</button>')+'</div></div>'}
+function closePop(){POPQ.shift();drawPop()}
+function keyResult(rows){if(G.me==null)return;const r=rows.filter(x=>x.ti==G.me),ok=r.filter(x=>!x.dnf).sort((a,b)=>a.pos-b.pos),t=G.teams[G.me],nm=x=>t.dr[x.di].n;
+  if(ok.length&&ok[0].pos==1)showPop({ic:'🏆',t:'¡Victoria!',b:'<b>'+nm(ok[0])+'</b> ganó la carrera'+(ok.length>1&&ok[1].pos<=3?' y <b>'+nm(ok[1])+'</b> completó el podio: <b>doble podio</b>.':'.')});
+  else if(ok.length&&ok[0].pos<=3)showPop({ic:'🥈',t:'¡Podio!',b:'<b>'+nm(ok[0])+'</b> terminó '+ok[0].pos+'º.'});
+  else if(!ok.length)showPop({ic:'💔',t:'Doble abandono',b:'Ninguno de tus pilotos vio la bandera a cuadros.'})}
+// ---- PRUEBAS LIBRES ----
+// PRB bloques de vueltas para repartir entre programas. Cada bloque tiene un riesgo de golpe que cuesta plata.
+const PRB=6,prNew=()=>({b:{tyre:0,part:0,x0:0,x1:0,rk:0},done:false,eff:null,rI:-1,sum:''});
+const prOf=ti=>{const k=hk(ti);return(k==G.cur?G.pr:G.P[k].pr)||{}};
+const prB=ti=>isH(ti)?((prOf(ti).eff||{}).part||0)*.3:0,prT=ti=>isH(ti)?1-.04*((prOf(ti).eff||{}).tyre||0):1;
+const prUsed=p=>Object.values(p.b).reduce((m,v)=>m+v,0);
+function prAdj(k,dv){const p=G.pr||(G.pr=prNew());if(p.done)return;if(dv>0&&(prUsed(p)>=PRB||((k=='tyre'||k=='part')&&p.b[k]>=3)||(k=='rk'&&p.rI<0)))return;if(dv<0&&p.b[k]<=0)return;p.b[k]+=dv;rr()}
+function prRook(i){const p=G.pr||(G.pr=prNew());if(p.done)return;p.rI=p.rI==i?-1:i;if(p.rI<0)p.b.rk=0;rr()}
+function prRun(){const p=G.pr||(G.pr=prNew());if(p.done||!prUsed(p))return;const t=G.teams[G.me],b=p.b;let cost=0,ev=[];
+  const risk=(n,r,nm)=>{for(let i=0;i<n;i++)if(Math.random()<r){cost+=.3+Math.random()*.6;ev.push(nm)}};
+  risk(b.tyre,.04,'el programa de neumáticos');risk(b.part,.08,'la prueba de piezas');risk(b.x0,.05,t.dr[0].n);risk(b.x1,.05,t.dr[1].n);risk(b.rk,.1,'el rookie');
+  t.dr[0].xp=Math.min(100,xpOf(t.dr[0])+1.5*b.x0);t.dr[1].xp=Math.min(100,xpOf(t.dr[1])+1.5*b.x1);
+  const rk=p.rI>=0?G.f2[p.rI]:null;if(rk&&b.rk)rk.xp=Math.min(100,xpOf(rk)+3*b.rk);
+  G.bud-=cost;p.eff={tyre:b.tyre,part:b.part};p.done=true;
+  p.sum='Corrieron '+prUsed(p)+' bloques.'+(b.tyre?' Desgaste −'+b.tyre*4+' %.':'')+(b.part?' Ritmo del auto +'+f1(b.part*.3)+'.':'')+(b.x0||b.x1?' Experiencia: '+(b.x0?t.dr[0].n+' +'+f1(1.5*b.x0)+' ':'')+(b.x1?t.dr[1].n+' +'+f1(1.5*b.x1):''):'')+(rk&&b.rk?' '+rk.n+' (rookie) +'+3*b.rk+' de experiencia.':'')+(cost?' Golpes: −'+f2d(cost)+' M.':' Sin golpes.');
+  if(ev.length)showPop({ic:'🔧',t:'Golpe en las pruebas libres',b:'Hubo un incidente en '+ev[0]+(ev.length>1?' y '+(ev.length-1)+' más':'')+'. Reparaciones: <b>−'+f2d(cost)+' M</b>.'});
+  rr()}
+function prCard(){if(G.phase!='main')return'';const p=G.pr||prNew(),b=p.b,used=prUsed(p),t=G.teams[G.me],btn=btnF,own=G.f2.map((d,i)=>({d,i})).filter(x=>x.d.own);
+  const row=(k,ic,nm,ds)=>'<tr><td>'+ic+' <b>'+nm+'</b><div class="sm">'+ds+'</div></td><td style="white-space:nowrap">'+(p.done?'<b>'+b[k]+'</b>':btn(false,"prAdj('"+k+"',-1)",'−')+' <b>'+b[k]+'</b> '+btn(false,"prAdj('"+k+"',1)",'+'))+'</td></tr>';
+  return '<div class="card"><h2>🧪 Pruebas libres</h2><div class="sm">'+(p.done?'<b>Pruebas terminadas.</b> '+p.sum:'Tenés <b>'+(PRB-used)+'</b> de '+PRB+' bloques de vueltas para repartir: cada bloque que usás en un programa se lo sacás a los demás. Más vueltas significan más chance de un golpe, que cuesta plata. Se hacen antes de la clasificación.')+'</div><div class="sm" style="margin-top:6px">'+tmpHtml()+'</div><div class="wrap"><table>'+
+    row('tyre','🛞','Desgaste de neumáticos','−4 % de desgaste en la carrera por bloque (máx. 3).')+row('part','🔩','Piezas y ajuste fino','+0,3 de ritmo del auto por bloque, en clasificación y carrera (máx. 3). Riesgo de golpe mayor.')+
+    row('x0','🎓',t.dr[0].n,'+1,5 de experiencia por bloque.')+row('x1','🎓',t.dr[1].n,'+1,5 de experiencia por bloque.')+
+    (own.length?row('rk','🧑‍🎓','Rookie de Promesas','+3 de experiencia por bloque, pero es el más propenso a golpes. Elegí cuál:')+'<tr><td colspan="2"><div class="row">'+own.map(x=>btn(p.rI==x.i,'prRook('+x.i+')',x.d.n+' (exp. '+Math.round(xpOf(x.d))+')')).join('')+'</div></td></tr>':'')+
+    '</table></div>'+(p.done?'':'<button class="big" onclick="prRun()"'+(used?'':' disabled')+'>🧪 Correr las pruebas libres</button>')+'</div>'}
+// ---- TEMPERATURA DE PISTA ----
+// Cada compuesto tiene un rango ideal; fuera de él pierde ritmo, y el blando con calor se gasta más rápido. Baja con la lluvia y deriva durante la carrera.
+const TR=[[18,32],[26,40],[33,48]];
+function wxT(){if(G.wx.t==null)G.wx.t=clp(R(24,44)-Math.round((G.wx.pr||0)*8),16,46);return G.wx.t}
+function mkTm(wx){let T=wxT();return wx.map(w=>{T+=gauss()*1.2;return Math.round((T-(w?6:0))*10)/10})}
+const tmpTip=T=>T>=38?'🔥 Calor: el blando se sobrecalienta y se gasta rápido; conviene medio o duro.':T<=27?'🥶 Frío: el duro no entra en temperatura; conviene blando o medio.':'🌤 Temperatura moderada: ningún compuesto sufre penalizaciones fuertes.';
+function tmpHtml(){const T=wxT(),rv=!!(G.pr&&G.pr.done&&prUsed(G.pr));return '🌡 Temperatura de pista estimada para la carrera: '+(rv?'<b>'+T+' °C</b> (medida en las libres)':'<b>entre '+(T-5)+' y '+(T+5)+' °C</b> (las pruebas libres afinan el pronóstico)')+'. '+tmpTip(T)+'<br>Rango ideal: Blando 18-32 °C · Medio 26-40 °C · Duro 33-48 °C. Fuera de su rango un compuesto pierde ritmo. La temperatura cambia durante la carrera y baja con la lluvia.'}
+function tmpCard(){if(G.wx==null)return'';return '<div class="card"><h2>🌡 Temperatura de pista</h2><div class="sm">'+tmpHtml()+'</div></div>'}
+// ---- TRABAJO EN EQUIPO ----
+function setQt(v){G.qt=v;const p=G.P[G.cur];if(p)p.qt=v;save();render()}
+function qtCard(){if(!G.q||G.phase!='quali')return'';const t=G.teams[G.me];if(G.q.ents.filter(x=>x.ti==G.me&&!x.pos).length<2)return'';const btn=btnF,v=G.qt||0,n=t.dr.map(d=>d.n);
+  return '<div class="card"><h2>🤝 Trabajo en equipo</h2><div class="sm">Uno puede darle el rebufo al otro: el beneficiado mejora su vuelta y el que se sacrifica pierde algo. Rinde más cuanto más colaborador es el que ayuda ('+n[0]+' '+coOf(t.dr[0])+' · '+n[1]+' '+coOf(t.dr[1])+'). Solo funciona mientras los dos sigan en la sesión.</div><div class="row">'+btn(v==0,'setQt(0)','Cada uno a lo suyo')+btn(v==1,'setQt(1)',n[1]+' le da rebufo a '+n[0])+btn(v==2,'setQt(2)',n[0]+' le da rebufo a '+n[1])+'</div>'+(G.q.tn&&G.q.tn.length?'<div class="sm" style="margin-top:6px">'+G.q.tn.join('<br>')+'</div>':'')+'</div>'}
+function qTow(al,seg){G.hum.forEach((ti,k)=>{const v=(G.P[k]||{}).qt||0;if(!v)return;const a=al.find(e=>e.ti==ti&&e.di==(v==1?0:1)),b=al.find(e=>e.ti==ti&&e.di==(v==1?1:0));if(!a||!b)return;
+  const g=1.3*(.4+.6*coOf(G.teams[ti].dr[b.di])/100);a.res[seg]+=g;b.res[seg]-=.7;if(ti==G.me)(G.q.tn=G.q.tn||[]).push('Q'+(seg+1)+': '+G.teams[ti].dr[b.di].n+' dio el rebufo: '+G.teams[ti].dr[a.di].n+' ganó '+g.toFixed(1)+' y él perdió 0,7.')})}
+// ---- ÓRDENES DE EQUIPO EN CARRERA ----
+function ordenPaso(i){const L=G.live,x=L.ent[i],y=x&&L.ent.find(z=>z.ti==x.ti&&z!==x&&!z.dnf);if(!x||x.dnf||!y||x.sum<=y.sum||(L.ordn||0)>=2)return;const d=G.teams[x.ti].dr,a=d[x.di].n,b=d[y.di].n,lap=L.sec*10;L.ordn=(L.ordn||0)+1;
+  if(Math.random()<.25+.7*coOf(d[x.di])/100){const tmp=x.sum;x.sum=y.sum;y.sum=tmp-.8;L.log.push('Vuelta '+lap+': 🤝 '+a+' cumple la orden y deja pasar a '+b+'.');showPop({ic:'🤝',t:'Orden cumplida',b:'<b>'+a+'</b> deja pasar a <b>'+b+'</b>.'})}
+  else{L.log.push('Vuelta '+lap+': 🙅 '+a+' ignora la orden de dejar pasar a '+b+'.');showPop({ic:'🙅',t:'Orden ignorada',b:'<b>'+a+'</b> hace caso omiso y no deja pasar a <b>'+b+'</b>.'});if(Math.random()<.12){x.sum-=3;y.sum-=3;L.log.push('Vuelta '+lap+': 💥 roce entre '+a+' y '+b+'.')}}
+  save();render()}
+function ordCard(){const L=G.live,es=L.ent.map((x,i)=>i).filter(i=>L.ent[i].ti==G.me&&L.ent[i].mine&&!L.ent[i].dnf);if(es.length<2||(L.ordn||0)>=2)return'';
+  const lead=L.ent[es[0]].sum>=L.ent[es[1]].sum?es[0]:es[1],fol=lead==es[0]?es[1]:es[0],X=L.ent[lead],Y=L.ent[fol],d=G.teams[G.me].dr;
+  return '<div class="card"><h2>📻 Órdenes de equipo</h2><div class="sm">'+d[X.di].n+' va delante de '+d[Y.di].n+' (a '+((X.sum-Y.sum)*.5).toFixed(1)+' s). Podés pedirle que lo deje pasar: la chance de que obedezca depende de lo colaborador que sea. Te quedan '+(2-(L.ordn||0))+' órdenes.</div><div class="row">'+btnF(false,'ordenPaso('+lead+')','Que '+d[X.di].n+' deje pasar a '+d[Y.di].n)+'</div></div>'}
+function vDev(){const t=G.teams[G.me],c=CIRC[G.race],btn=btnF;const up=COMP.map((n,i)=>{const cost=upCost(t,i),mx=t.car[i]>=capOf(G.me,i);return btn(false,'upgrade('+i+')',mx?n+' '+t.car[i]+' · máximo':n+' '+t.car[i]+' → '+(t.car[i]+1)+' · $'+f1(cost)+' M',!canSp(cost)||mx||invDone('dev'))}).join('');
+  return noteH()+invInfo('dev')+'<div class="card"><h2>Desarrollo del auto</h2><div class="row">'+up+'</div><div class="sm" style="margin-top:6px">Cada mejora suma +1 al componente y cuesta más cuanto más alto está. Auto en este circuito con tu puesta a punto: <b>'+f1(carE(t,c[1],G.setup))+'</b>. El desarrollo convencional tiene un techo de '+CAPN+': para superarlo hace falta una tecnología nueva (ver I+D).</div>'+hintFin()+'</div>'+engCard()}
+function vRd(){return noteH()+invInfo('rd')+vTech(G.teams[G.me])}
+// ---- LÍMITE DE INVERSIÓN: una por carrera en Desarrollo del auto y una en I+D ----
+const invSt=()=>G.s*100+G.race,invDone=k=>!!G.lim&&G.lim[k]===invSt(),invMark=k=>{G.lim=G.lim||{};G.lim[k]=invSt()};
+const invInfo=k=>'<div class="card"'+(invDone(k)?' style="border-color:var(--acc)"':'')+'><div class="sm">'+(invDone(k)?'✅ <b>Ya hiciste tu inversión de esta carrera.</b> Podés volver a invertir después de la próxima carrera.':'⚠️ Podés hacer <b>una sola inversión por carrera</b> en '+(k=='dev'?'Desarrollo del auto':'I+D')+': elegí bien dónde y cuánto.')+'</div></div>';
+// ---- AVISO DE INICIO DE SEMANA ----
+function weekPop(){if(!G||G.phase!='main'||G.me==null||G.hold||!G.wx||G.race>=CIRC.length)return;const st=invSt();G.lim=G.lim||{};if(G.lim.wk===st)return;G.lim.wk=st;save();
+  const c=CIRC[G.race],k=CK[c[1]],T=wxT(),F=fin();
+  showPop({ic:'🏁',t:'Semana '+(G.race+1)+' de '+CIRC.length+': '+c[0],b:'🏟️ <b>'+c[2]+'</b><br>'+k[0]+'.'+(CR[c[0]]&&CR[c[0]].d?'<br>'+CR[c[0]].d+'.':'')+'<br>🚨 Riesgo de safety car: <b>'+scRisk(c[0])+'</b><br>🌦 Probabilidad de lluvia: <b>'+Math.round(G.wx.pr*100)+'%</b> · 🌡 pista entre <b>'+(T-5)+' y '+(T+5)+' °C</b><br>💰 Caja: <b>'+f1(G.bud)+' M</b> · disponible para invertir: <b>'+f1(F.free)+' M</b><br>⚙️ Motor: desgaste <b>'+Math.round(G.eng.w)+' %</b> · unidad '+G.eng.u+' de 3'+(G.eng.w>=70?' · <b class="neg">conviene cambiarlo</b>':'')})}
+// ---- MOTOR (UNIDAD DE POTENCIA) Y COMISARIOS ----
+// El motor se desgasta ~9 % por carrera (más con estilo arriesgado). Desde 55 % hay riesgo de rotura y desde 60 % pierde potencia. 3 unidades por temporada; la cuarta penaliza.
+function engOf(ti){if(isH(ti)){const k=hk(ti);return(k==G.cur?G.eng:G.P[k].eng)||(G.eng={w:0,u:1,pn:0})}const t=G.teams[ti];if(t.ew==null){t.ew=R(5,45);t.eu=1}return{w:t.ew,u:t.eu}}
+const setEw=(ti,v)=>{if(isH(ti))engOf(ti).w=v;else G.teams[ti].ew=v};
+const engFailP=w=>Math.pow(Math.max(0,w-55)/45,2)*.05,engFail=x=>engFailP(engOf(x.ti).w);
+function engBoom(x){const L=G.live,t=G.teams[x.ti],nm=t.dr[x.di].n,lap=L.sec*10+1+Math.floor(Math.random()*10);x.dnf=L.sec+1;x.dlap=lap;setEw(x.ti,100);L.log.push('Vuelta '+lap+': 🔥 se rompe el motor de '+nm+' ('+t.n+'): abandona.');kp(x,'🔥','¡Se rompe el motor!','abandona: la unidad de potencia estaba muy desgastada. Para la próxima carrera conviene montar una nueva.')}
+function engTick(){const L=G.live;G.hum.forEach((ti,k)=>{const e=k==G.cur?G.eng:G.P[k].eng,es=L.ent.filter(x=>x.ti==ti),st=es.reduce((m,x)=>m+x.st,0)/(es.length||1);if(e.w<100)e.w=Math.min(100,e.w+9*(1+(st-1)*.25));e.pn=0});
+  G.teams.forEach((t,ti)=>{if(isH(ti))return;if(t.ew==null){t.ew=R(5,45);t.eu=1}t.ew=Math.min(100,t.ew+R(7,11));if(t.ew>=85){t.ew=0;t.eu=(t.eu||1)+1}})}
+function newEngine(){const e=G.eng,c=2.5;if(!canSp(c))return;G.bud-=c;e.w=0;e.u++;if(e.u>3){e.pn=(e.pn||0)+1;G.note='⚠️ Montaste la unidad '+e.u+' de la temporada: penalización de '+5*Math.min(e.pn,2)+' puntos de ritmo en la próxima carrera.'}else G.note='⚙️ Montaste una unidad nueva ('+e.u+' de 3 permitidas).';save();render()}
+function engCard(){const e=G.eng||{w:0,u:1,pn:0},w=Math.round(e.w),risk=Math.round((1-Math.pow(1-engFailP(w),6))*100);
+  return '<div class="card"><h2>⚙️ Unidad de potencia (motor)</h2><div class="sm">Desgaste: <b class="'+(w>=75?'neg':w<40?'pos':'')+'">'+w+' %</b> · Unidades usadas esta temporada: <b>'+e.u+' de 3</b>. Cada carrera suma cerca de 9 % (más con estilo arriesgado). Desde el 55 % crece el riesgo de rotura y desde el 60 % pierde potencia. Riesgo de rotura en la próxima carrera: <b>'+risk+' %</b>.<br>Una unidad nueva cuesta 2,5 M'+(e.u>=3?' y, como ya usaste las 3 permitidas, <b class="neg">te penaliza 5 puntos de ritmo en la próxima carrera</b>':'')+'.'+(e.pn?'<br><b class="neg">Penalización pendiente: −'+5*Math.min(e.pn,2)+' puntos de ritmo en la próxima carrera.</b>':'')+'</div><div class="row">'+btnF(false,'newEngine()','Montar unidad nueva ($2,5 M)',!canSp(2.5))+'</div></div>'}
+function stewards(L,wet){const o=L.ent.filter(x=>!x.dnf).sort((a,b)=>b.sum-a.sum);o.forEach((x,i)=>{if(!i||Math.random()>=.006*[.3,1,3][x.st]*(wet?1.5:1)*(1.3-xpOf(G.teams[x.ti].dr[x.di])/200))return;
+  const v=o[i-1],r=Math.random(),t=G.teams[x.ti],nm=t.dr[x.di].n,vn=G.teams[v.ti].dr[v.di].n,lap=L.sec*10+1+Math.floor(Math.random()*10);v.sum-=1.5;
+  const sec=r<.25?0:r<.88?5:10;if(sec)x.sum-=sec*2;
+  L.log.push('Vuelta '+lap+': ⚖️ '+nm+' ('+t.n+') toca a '+vn+'. '+(sec?'Los comisarios le aplican '+sec+' s de penalización.':'Los comisarios lo dejan pasar sin sanción.'));
+  if(x.ti==G.me)showPop({ic:'⚖️',t:sec?'Penalización de '+sec+' s':'Contacto sin sanción',b:'<b>'+nm+'</b> toca a '+vn+'. '+(sec?'Los comisarios le aplican <b>'+sec+' segundos</b> de penalización.':'Los comisarios no lo sancionan.')});
+  else if(v.ti==G.me)showPop({ic:'⚖️',t:'Tocaron a tu piloto',b:'<b>'+nm+'</b> ('+t.n+') toca a <b>'+vn+'</b>. '+(sec?'Los comisarios lo sancionan con <b>'+sec+' s</b>.':'Los comisarios no lo sancionan.')})})}
+function hireM(i){const m=G.mm[i];if(!m)return;if(G.crew.length>=CREW_N){G.note='No hay lugar libre en el equipo: despedí a alguien primero.';return rr()}const fee=m.w*4;if(G.bud<fee){G.note='No te alcanza para la prima de '+m.n+' ('+f2d(fee)+' M).';return rr()}G.bud-=fee;G.crew.push(m);G.mm.splice(i,1);G.note='🔧 Contrataste a '+m.n+' (calidad '+m.q+') por '+f2d(m.w)+' M por carrera. Prima de ingreso: '+f2d(fee)+' M.';rr()}
+function fireM(i){const m=G.crew[i];if(!m)return;const fee=m.w*2;if(G.bud<fee){G.note='No te alcanza para la indemnización de '+m.n+' ('+f2d(fee)+' M).';return rr()}G.bud-=fee;G.crew.splice(i,1);G.note='Despediste a '+m.n+'. Indemnización: '+f2d(fee)+' M.';rr()}
+function vMec(mk){const c=G.crew||[],Q=crewQ(G.me),btn=btnF,sal=c.reduce((m,x)=>m+x.w,0),d=Math.round((pitF(Q)-1)*100),col=q=>q>=80?'pos':q<55?'neg':'';
+  const staff=Array.from({length:CREW_N},(_,i)=>{const m=c[i];return m?'<tr><td>'+m.n+'</td><td><b class="'+col(m.q)+'">'+m.q+'</b></td><td>'+f2d(m.w)+' M</td><td>'+btn(false,'fireM('+i+')','Despedir ('+f2d(m.w*2)+' M)')+'</td></tr>':'<tr><td colspan="4" class="sm">— puesto vacante (cuenta como calidad 35) —</td></tr>'}).join('');
+  const pool=G.mm.map((m,i)=>({m,i})).sort((a,b)=>b.m.q-a.m.q).map(x=>'<tr><td>'+x.m.n+'</td><td><b class="'+col(x.m.q)+'">'+x.m.q+'</b></td><td>'+f2d(x.m.w)+' M</td><td>'+btn(false,'hireM('+x.i+')','Contratar (prima '+f2d(x.m.w*4)+' M)')+'</td></tr>').join('');
+  return (mk?'':noteH())+'<div class="card"><h2>🔧 Equipo de mecánicos</h2><div class="sm">La calidad promedio del equipo define cuánto tardás en cada parada y qué chance hay de una parada lenta (gomas mal puestas, tuerca trabada). Cada mecánico cobra por carrera: ese sueldo entra en los gastos fijos y en el presupuesto bloqueado.</div>'+
+    '<div class="row" style="justify-content:space-between;margin-top:8px"><div><div class="sm">Calidad del equipo</div><b style="font-size:20px">'+Math.round(Q)+'</b></div><div><div class="sm">Tiempo de parada</div><b style="font-size:20px" class="'+(d<=0?'pos':'neg')+'">'+(d<0?'−'+(-d):d>0?'+'+d:'0')+' %</b></div><div><div class="sm">Chance de parada lenta</div><b style="font-size:20px">'+Math.round(pitErr(Q)*100)+' %</b></div><div><div class="sm">Sueldos</div><b style="font-size:20px">'+f2d(sal)+' M/carrera</b></div></div></div>'+
+    '<div class="card"><h2>Mi equipo ('+c.length+' de '+CREW_N+')</h2><div class="wrap"><table><tr><th>Mecánico</th><th>Calidad</th><th>Sueldo</th><th></th></tr>'+staff+'</table></div></div>'+
+    '<div class="card"><h2>Mercado de mecánicos</h2><div class="sm">Los mecánicos de calidad alta cobran más. Contratar cuesta una prima de 4 carreras de sueldo; despedir, una indemnización de 2. Los mecánicos de menos de 82 mejoran con las temporadas; el mercado se renueva al cierre de cada temporada.</div>'+(pool?'<div class="wrap"><table><tr><th>Mecánico</th><th>Calidad</th><th>Sueldo</th><th></th></tr>'+pool+'</table></div>':'<div class="sm">No quedan mecánicos disponibles.</div>')+'</div>'}
+
 const SUR=['Alvarenga','Bianchi','Castellan','Dumont','Eriksen','Fontaine','Garrido','Hoffmann','Ibáñez','Jansen','Kowalski','Larsen','Mancini','Navarro','Okonkwo','Pereira','Quintero','Rossi','Santoro','Takeda','Ulloa','Vasquez','Wagner','Yamada','Zeller','Aguirre','Benítez','Cordero','Delgado','Espinosa','Fernandes','Gallardo','Haugen','Ivanov','Juárez','Kuznetsov','Lombardi','Moretti','Nakamura','Olivera','Paredes','Reyes','Sandoval','Torres','Urrutia','Valdés','Weber','Ximénez','Zamora','Acosta','Brandão','Cabrera','Dietrich','Escobar','Fonseca','Gutiérrez','Herrera','Iglesias','Jiménez','Kessler'],INI='ABCDEFGHJKLMNPRSTVWYZ',DUR=[1,.93,.88];
 const wage=(s,dur,rank)=>Math.max(.25,(.5+(s-60)*.05)*DUR[dur-1]*(s>=78&&rank>6?1.2:1));
 const myRank=()=>G.rk&&G.rk.length?G.rk.indexOf(G.me)+1:6;
@@ -586,6 +706,7 @@ function mkRookie(a){const age=a||R(18,21),s=R(48,66),pot=Math.min(93,s+(age<=21
 function dev1(d){d.age++;if(d.age<=24)d.s=Math.min(d.pot,d.s+R(1,4));else{d.s=clp(d.s+(d.age<=28?R(0,1):d.age<=32?R(-1,0):-R(1,3)),50,97);d.pot=Math.max(d.pot,d.s)}}
 function ensure(){
   G.teams.forEach(t=>t.dr.forEach(d=>{if(d.age==null){d.age=d.a0!=null?d.a0:R(21,36);d.pot=d.age<=24?Math.min(95,d.s+R(2,6)):d.s;d.ct=R(1,3);d.w=wage(d.s,d.ct,6)}}));
+  (G.P||[]).forEach(p=>{if(!p.crew)p.crew=startCrew()});if(!G.crew)G.crew=(G.P&&G.P[G.cur]&&G.P[G.cur].crew)||startCrew();if(!G.mm||!G.mm.length)G.mm=genMM();if(!G.eng)G.eng={w:0,u:1,pn:0};(G.P||[]).forEach(p=>{if(!p.eng)p.eng={w:0,u:1,pn:0}});
   if(!G.fa)G.fa=[];if(!G.f2||!G.f2.length){G.f2=[];for(let i=0;i<24;i++)G.f2.push(mkRookie(R(18,24)))}
   if(!G.tech)G.tech=newTech();G.teams.forEach(t=>{if(!t.rd)t.rd=[0,0,0]});
   if(!G.cn)G.cn=[];applyCirc();if(G.tp==null)G.tp=0;(G.P||[]).forEach(p=>{if(p.tp==null)p.tp=0});if(!G.tab)G.tab='wk';if(!G.rk)G.rk=[];if(G.note==null)G.note='';
@@ -597,18 +718,29 @@ const ranking=()=>G.teams.map((t,i)=>i).sort((a,b)=>G.teams[b].pts-G.teams[a].pt
 // La carrera se divide en 6 tramos (10 vueltas cada uno). El ritmo de cada tramo depende del auto, el piloto,
 // el estilo vigente, el desgaste de los neumáticos (crece con la edad de la goma) y el azar. Una parada cuesta tiempo y renueva las gomas.
 // ---- clima: probabilidad de lluvia del fin de semana, clima de la clasificación y de cada tramo de la carrera
-function genWx(){const pr=Math.round((.1+Math.random()*.45)*100)/100,r=[];let w=Math.random()<pr?1:0;
-  for(let i=0;i<SEC;i++){if(i)w=w?(Math.random()<.72?1:0):(Math.random()<pr*.4?1:0);r.push(w)}return{pr,q:Math.random()<pr?1:0,r}}
+// Modelo realista: cada circuito tiene una probabilidad climática de lluvia (WXB, en el mismo orden del calendario). Esa probabilidad, con algo de
+// variación por fin de semana, es el pronóstico que se muestra y la que decide si llueve. La gran mayoría de las carreras se corre completa en seco.
+// Si llueve: carrera mojada de punta a punta (38 %), sale mojada y se seca (22 %), sale seca y empieza a llover (28 %) o chaparrón corto (12 %).
+// Resultado promedio: ~16 % de las carreras con lluvia y ~10 % con cambio de condiciones durante la carrera.
+const WXB=[.15,.02,.2,.25,.2,.2,.15,.22,.08,.2,.28,.15,.35,.22,.1,.08,.2,.12,.08,.28,.03,.03,.15,.02];
+function genWx(){
+  const b=WXB[G.race]??.12,pr=Math.round(clp(b*(.6+Math.random()*.8),.01,.6)*100)/100,rain=Math.random()<pr,r=new Array(SEC).fill(0);
+  if(rain){const u=Math.random();
+    if(u<.38){r.fill(1)}
+    else if(u<.60){const k=2+Math.floor(Math.random()*3);for(let i=0;i<k;i++)r[i]=1}
+    else if(u<.88){const k=2+Math.floor(Math.random()*4),end=Math.random()<.4?k+2:SEC;for(let i=k;i<Math.min(end,SEC);i++)r[i]=1}
+    else{const k=1+Math.floor(Math.random()*4),d=1+Math.floor(Math.random()*2);for(let i=k;i<Math.min(k+d,SEC);i++)r[i]=1}}
+  return{pr,q:Math.random()<(rain?.5:.02)?1:0,r}}
 // ---- clasificación del sábado: Q1 (22 pilotos), Q2 (16) y Q3 (10). Entre segmentos podés cambiar el ritmo de tus pilotos.
 function startQuali(){if(G.np>1&&G.cur<G.np-1){passTo(G.cur+1);return}saveP();const c=CIRC[G.race],ents=[];
   G.teams.forEach((t,ti)=>{const su=isH(ti)?G.P[hk(ti)].setup:Math.floor(Math.random()*3);
-    t.dr.forEach((d,di)=>{const mine=isH(ti),r=Math.random();ents.push({ti,di,mine,car:carE(t,c[1],su),skill:d.s,push:mine?G.P[hk(ti)].qpush[di]:(r<.55?favSt(d):(r<.7?0:r<.9?1:2)),res:[],pos:0})})});
+    t.dr.forEach((d,di)=>{const mine=isH(ti),r=Math.random();ents.push({ti,di,mine,car:carE(t,c[1],su)+prB(ti),skill:d.s,push:mine?G.P[hk(ti)].qpush[di]:(r<.55?favSt(d):(r<.7?0:r<.9?1:2)),res:[],pos:0})})});
   if(G.np>1){loadP(0);G.hold=true}G.q={seg:0,ents};G.phase='quali';save();render()}
 function setQ(ti,di,v){const e=G.q.ents.find(x=>x.ti==ti&&x.di==di);e.push=v;const p=G.P[hk(ti)];if(p)p.qpush[di]=v;if(G.hum[G.cur]==ti)G.qpush[di]=v;save();render()}
 function runSeg(){const Q=G.q;if(G.np>1){const n=qNext();if(n<G.np){passTo(n);return}}
   do{const seg=Q.seg,wet=G.wx.q,al=Q.ents.filter(e=>!e.pos);
     al.forEach(e=>{const p=e.push;e.res[seg]=(wet?.35*e.car+.60*e.skill:.50*e.car+.45*e.skill)+QB[p]+fsMod(G.teams[e.ti].dr[e.di],p)+gauss()*(wet?3.2:2)*QSM[p]-(Math.random()<QE[p]?7:0)});
-    al.sort((a,b)=>b.res[seg]-a.res[seg]);const keep=seg==0?16:seg==1?10:0;
+    qTow(al,seg);al.sort((a,b)=>b.res[seg]-a.res[seg]);const keep=seg==0?16:seg==1?10:0;
     al.forEach((e,k)=>{if(seg==2||k>=keep)e.pos=k+1});Q.seg++}
   while(Q.seg<3&&!Q.ents.some(e=>e.mine&&!e.pos));
   if(Q.seg>=3){G.grid=Q.ents.slice().sort((a,b)=>a.pos-b.pos).map(e=>({ti:e.ti,di:e.di,pos:e.pos,best:Math.max(...e.res.filter(v=>v!=null))}));G.phase='grid';if(G.np>1){loadP(0);G.hold=true}}
@@ -618,11 +750,11 @@ function runSeg(){const Q=G.q;if(G.np>1){const n=qNext();if(n<G.np){passTo(n);re
 function startRace(){if(G.np>1&&G.cur<G.np-1){passTo(G.cur+1);return}saveP();
   const c=CIRC[G.race],ent=[],gpm={},cm=CIRC0[G.race]=='GP de Puerto Soleado'?2:c[1]=='t'?1.3:1,wx=G.wx.r;
   G.grid.forEach(g=>gpm[g.ti+'-'+g.di]=g.pos);
-  G.teams.forEach((t,ti)=>{const su=isH(ti)?G.P[hk(ti)].setup:Math.floor(Math.random()*3),car=carE(t,c[1],su);
+  G.teams.forEach((t,ti)=>{const su=isH(ti)?G.P[hk(ti)].setup:Math.floor(Math.random()*3),car=carE(t,c[1],su)+prB(ti);
     t.dr.forEach((d,di)=>{const mine=isH(ti),P_=mine?G.P[hk(ti)]:null,r=Math.random(),r2=Math.random(),st=mine?P_.style[di]:(r<.55?favSt(d):(r<.7?0:r<.9?1:2)),sp=mine?P_.strat[di]:(Math.random()<.5?1:2),
       cp=mine?P_.comp[di]:(wx[0]?(r2<.85?3:1):(r2<.35?0:r2<.8?1:2)),gp=gpm[ti+'-'+di];
-      ent.push({ti,di,su,st,mine,sched:sp==1?[3]:[2,4],age:0,pa:0,sum:0,last:0,car,skill:d.s,gp,gb:(11.5-gp)*GK*cm,day:gauss()*2.55*SS[st],dnf:0,pits:0,cp,used:[cp],pend:false})})});
-  if(G.np>1){loadP(0);G.hold=false}G.live={sec:0,ent,log:[],pit:[],wx:wx.slice(),wetRace:wx.filter(Boolean).length>=2,fc:0,tp:G.teams.map((t,ti)=>isH(ti)?G.P[hk(ti)].tp:aiPol(t))};G.phase='race';advance();raceTurnStart()}
+      ent.push({ti,di,su,st,mine,sched:sp==1?[3]:[2,4],age:0,pa:0,sum:0,last:0,car,skill:d.s,gp,gb:(11.5-gp)*GK*cm,day:gauss()*2.55*SS[st],dnf:0,pits:0,cp,used:[cp],pend:false,tw:prT(ti)})})});
+  if(G.np>1){loadP(0);G.hold=false}G.live={sec:0,ent,log:[],pit:[],wx:wx.slice(),tm:mkTm(wx),wetRace:wx.filter(Boolean).length>=2,fc:0,tp:G.teams.map((t,ti)=>isH(ti)?G.P[hk(ti)].tp:aiPol(t))};G.phase='race';advance();raceTurnStart()}
 // Safety car: la probabilidad en cada tramo suma (1) un piso de azar, (2) muros del circuito, (3) lluvia, (4) cantidad de pilotos con estilo arriesgado,
 // (5) desgaste de neumáticos del pelotón, (6) un auto detenido en ese tramo y (7) en el primer tramo, la curva 1 del circuito.
 // Bajo safety car el tramo siguiente es neutralizado, el pelotón se compacta y parar en boxes cuesta mucho menos.
@@ -636,14 +768,14 @@ function scRoll(s,wet){
   let r=Math.random()*ts,cause='un incidente en pista',acc=0,ck=null;
   for(const k in t){acc+=t[k];if(r<=acc&&t[k]>0){cause=CS[k];ck=k;break}}
   const lap=(ck=='t1')?1:L.sec*10;
-  L.sc=1;L.nsc=(L.nsc||0)+1;L.scCause=cause;L.log.push('Vuelta '+lap+': 🚨 safety car por '+cause+'.');
+  L.sc=1;L.nsc=(L.nsc||0)+1;L.scCause=cause;L.log.push('Vuelta '+lap+': 🚨 safety car por '+cause+'.');showPop({ic:'🚨',t:'¡Safety car!',b:'Causa: '+cause+'. El pelotón se compacta y parar en boxes cuesta mucho menos tiempo: es el momento de pensar en cambiar neumáticos.'});
   if(!dnfNow&&['wall','arr','t1','wet'].includes(ck)&&Math.random()<.6){
     const w=run.map(x=>1+(x.st==2?2:0)+(wet&&x.cp!=3?2:0)+((x.pw||0)>1.5?1.5:0)),tot=w.reduce((m,v)=>m+v,0);let q=Math.random()*tot,v=run[run.length-1];
     for(let i=0;i<run.length;i++){q-=w[i];if(q<=0){v=run[i];break}}
     v.dnf=L.sec;v.dlap=lap;L.log.push('Vuelta '+lap+': abandona '+G.teams[v.ti].dr[v.di].n+' ('+G.teams[v.ti].n+') en el incidente.')}
   const alive=L.ent.filter(x=>!x.dnf),lead=Math.max(...alive.map(x=>x.sum));alive.forEach(x=>{x.sum=lead-(lead-x.sum)*.35})}
 function advance(){
-  const L=G.live;L.pit=[];
+  const L=G.live;L.pit=[];L.ent.forEach(x=>{x.rp=null});if(!L.epd){L.epd=1;L.ent.forEach(x=>{const e=engOf(x.ti);if(e.pn)x.sum-=5*Math.min(e.pn,2)})}
   while(L.sec<SEC){
     const s=L.sec,wet=L.wx[s],neutral=!!L.sc;
     L.ent.forEach(x=>{x._ta=x.dnf?null:tpAdj(x)});
@@ -651,11 +783,12 @@ function advance(){
       if(neutral){x.age+=.5;x.pw=0;return}
       const U=SUS[x.su],K=CP[x.cp];x.age++;
       let tp=K.p,ww=K.w,dm=1;
-      if(wet){if(x.cp==3){tp=0;ww=.6;dm=1.5}else{tp-=8;dm=3.5}}else if(x.cp==3){tp=-6.5;ww=3}
+      if(wet){if(x.cp==3){tp=0;ww=.6;dm=1.5}else{tp-=8;dm=3.5}}else if(x.cp==3){tp=-6.5;ww=3}else if(L.tm){const T=L.tm[s],r=TR[x.cp],hot=Math.max(0,T-r[1]),cold=Math.max(0,r[0]-T);tp-=(hot+cold)*.14;ww*=1+hot*.05}tp-=Math.max(0,engOf(x.ti).w-60)*.01;
       const base=wet?.40*x.car+.55*x.skill:.55*x.car+.35*x.skill,gb=s<2?x.gb*(s?.4:.6):0,
-        pen=KW[x.st]*Math.pow(x.age,3)*ww*U.w,p=base+x.day+SB[x.st]+fsMod(G.teams[x.ti].dr[x.di],x.st)+tp+gb-pen+x._ta.p+gauss()*3.87*SS[x.st]*U.s*x._ta.s*(wet?1.4:1);
+        pen=KW[x.st]*Math.pow(x.age,3)*ww*U.w*(x.tw||1),p=base+x.day+SB[x.st]+fsMod(G.teams[x.ti].dr[x.di],x.st)+tp+gb-pen+x._ta.p+gauss()*3.87*SS[x.st]*U.s*x._ta.s*(wet?1.4:1);
       x.pw=pen;x.last=p;x.sum+=p;
-      if(Math.random()<(SD[x.st]+.01+U.d)*dm/SEC){x.dnf=L.sec+1;const lap=L.sec*10+1+Math.floor(Math.random()*10);x.dlap=lap;L.log.push('Vuelta '+lap+': abandona '+G.teams[x.ti].dr[x.di].n+' ('+G.teams[x.ti].n+')'+(wet&&x.cp!=3?' con neumáticos de seco bajo la lluvia.':'.'))}});
+      if(Math.random()<(SD[x.st]+.01+U.d)*dm*.8/SEC){x.dnf=L.sec+1;const lap=L.sec*10+1+Math.floor(Math.random()*10);x.dlap=lap;L.log.push('Vuelta '+lap+': abandona '+G.teams[x.ti].dr[x.di].n+' ('+G.teams[x.ti].n+')'+(wet&&x.cp!=3?' con neumáticos de seco bajo la lluvia.':'.'))}
+      if(!x.dnf&&Math.random()<errP(x,wet))incident(x);if(!x.dnf&&Math.random()<engFail(x))engBoom(x)});
     if(!neutral)teamDuel();
     L.sec++;
     if(neutral){L.sc=0;L.log.push('Vuelta '+L.sec*10+': reanuda la carrera.')}
@@ -665,16 +798,18 @@ function advance(){
       if(L.sc)L.ent.forEach(x=>{if(x.dnf||x.mine)return;const nxt=x.sched.filter(q=>q>L.sec)[0];
         if(x.age>=2&&Math.random()<(nxt!=null?.65:.35)&&!x.sched.includes(L.sec)){if(nxt!=null)x.sched=x.sched.filter(q=>q!=nxt);x.sched.push(L.sec)}});
       L.ent.forEach(x=>{if(x.dnf||x.mine)return;const mm=(nx&&x.cp!=3)||(!nx&&x.cp==3);if(mm&&Math.random()<.6&&!x.sched.includes(L.sec))x.sched.push(L.sec)});
+      repairs(L);stewards(L,wet);
       const pit=L.ent.filter(x=>!x.dnf&&x.sched.includes(L.sec));
-      pit.forEach(x=>{x.sum-=PL*(L.sc?.4:1);x.pa=x.age;x.age=0;x.pits++;
+      pit.forEach(x=>{x.sum-=pitLoss(x,L);x.pa=x.age;x.age=0;x.pits++;
         if(x.mine){x.pend=true;x.cp=fc?3:(x.cp==3?1:x.cp==0?1:x.cp==1?2:1)}
         else{if(nx)x.cp=3;else{const o=[0,1,2].filter(q=>q!=x.cp);x.cp=o[Math.floor(Math.random()*o.length)]}if(!x.used.includes(x.cp))x.used.push(x.cp)}});
       const mine=pit.filter(x=>x.mine),mm=L.ent.filter(x=>x.mine&&!x.dnf&&!pit.includes(x)&&((fc&&x.cp!=3)||(!fc&&x.cp==3)));
+      if(mm.length&&!L.sc)showPop({ic:fc?'🌧️':'☀️',t:'Cambia el clima',b:fc?'Se viene la lluvia y alguno de tus pilotos sigue con neumáticos de seco.':'La pista se seca y alguno de tus pilotos sigue con neumáticos de lluvia.'});
       if(mine.length||mm.length||(L.sc&&L.ent.some(x=>x.mine&&!x.dnf))){L.pit=mine.map(x=>L.ent.indexOf(x));save();render();return}}
   }
   finishRace()}
 function callPit(i){const L=G.live,x=L.ent[i];if(!x||x.dnf||L.pit.includes(i))return;
-  x.sum-=PL*(L.sc?.4:1);x.pa=x.age;x.age=0;x.pits++;x.pend=true;x.cp=L.fc?3:(x.cp==3?1:x.cp==0?1:x.cp==1?2:1);L.pit.push(i);save();render()}
+  x.sum-=pitLoss(x,L);x.pa=x.age;x.age=0;x.pits++;x.pend=true;x.cp=L.fc?3:(x.cp==3?1:x.cp==0?1:x.cp==1?2:1);L.pit.push(i);save();render()}
 function orderNow(){const L=G.live;return L.ent.map((x,i)=>i).sort((a,b)=>{const x=L.ent[a],y=L.ent[b];return (x.dnf?1:0)-(y.dnf?1:0)||(x.dnf?y.dnf-x.dnf:y.sum-x.sum)})}
 function applyTech(k,ti){
   const T=G.tech,D=7+R(0,3),from=G.teams[ti].car[k];
@@ -694,15 +829,15 @@ function techRace(){
     G.hum.forEach(ti=>{if(Math.random()<rdChance(G.teams[ti],k))cand.push(ti)});
     if(cand.length)ev.push(applyTech(k,pk(cand)))}
   return ev}
-function finishRace(){
+function finishRace(){learnXP();engTick();G.pr=null;(G.P||[]).forEach(p=>p.pr=null);
   const L=G.live,c=CIRC[G.race];L.ent.forEach(x=>{if(!x.dnf&&x.used.length<2&&!L.wetRace){x.sum-=PEN2;x.pn=1;L.log.push('Penalización de 10 s a '+G.teams[x.ti].dr[x.di].n+' ('+G.teams[x.ti].n+') por no usar dos compuestos distintos.')}});const ord=orderNow(),rows=[];
   ord.forEach((i,k)=>{const x=L.ent[i],p=!x.dnf&&k<10?PTS[k]:0;rows.push({ti:x.ti,di:x.di,st:x.st,sp:x.pits,pos:k+1,gp:x.gp,pts:p,dnf:!!x.dnf,cps:x.used,pn:!!x.pn});
     const t=G.teams[x.ti];t.dr[x.di].pts+=p;t.pts+=p});
   let money=null;const mm=[];saveP();
-  G.hum.forEach((ti,k)=>{const mt=G.teams[ti],pts=rows.filter(x=>x.ti==ti).reduce((m,x)=>m+x.pts,0),
+  keyResult(rows);G.hum.forEach((ti,k)=>{const mt=G.teams[ti],pts=rows.filter(x=>x.ti==ti).reduce((m,x)=>m+x.pts,0),
     pp=G.P[k],cs=SLOTS.map(s=>pp.spon&&pp.spon[s]).filter(Boolean),sp=cs.reduce((m,c)=>m+c.f,0),bn=cs.reduce((m,c)=>m+c.b*pts,0),
-    inc=TVB+sp+bn,sl=mt.dr.reduce((m,d)=>m+d.w,0),ac=G.f2.filter(d=>d.ow==k+1).length*.15,lp=(pp.loans||[]).reduce((m,l)=>m+l.pay,0),cost=sl+2+ac+lp;
-    const mo={pts,inc,sl,fix:2+ac,lp,sp,bn,net:inc-cost};pp.bud+=mo.net;pp.loans=(pp.loans||[]).map(l=>({...l,left:l.left-1})).filter(l=>l.left>0);mm.push(mo)});
+    inc=TVB+sp+bn,sl=mt.dr.reduce((m,d)=>m+d.w,0),ac=G.f2.filter(d=>d.ow==k+1).length*.15,lp=(pp.loans||[]).reduce((m,l)=>m+l.pay,0),cw=(pp.crew||[]).reduce((m,c)=>m+c.w,0),dm=((G.live&&G.live.dmg)||{})[ti]||0,cost=sl+2+ac+lp+cw+dm;
+    const mo={pts,inc,sl,fix:2+ac,cw,dm,lp,sp,bn,net:inc-cost};pp.bud+=mo.net;pp.loans=(pp.loans||[]).map(l=>({...l,left:l.left-1})).filter(l=>l.left>0);mm.push(mo)});
   money=mm[0]||null;
   G.teams.forEach((t,i)=>{if(!isH(i)&&Math.random()<.3){const k=Math.floor(Math.random()*3);t.car[k]=Math.min(capOf(i,k),t.car[k]+1)}});
   const tev=techRace();
@@ -723,13 +858,14 @@ function setStrat(di,v){G.strat[di]=v;save();render()}
 function setComp(di,v){G.comp[di]=v;save();render()}
 function setLComp(i,v){G.live.ent[i].cp=v;save();render()}
 function setSetup(v){G.setup=v;save();render()}
-function upgrade(i){const t=G.teams[G.me],c=upCost(t,i);if(!canSp(c)||t.car[i]>=capOf(G.me,i))return;G.bud-=c;t.car[i]++;save();render()}
-function rdInvest(k,m){const t=G.teams[G.me];if(!canSp(m)||t.rd[k]>=RD_MAX)return;G.bud-=m;t.rd[k]=Math.min(RD_MAX,t.rd[k]+m);const y=window.scrollY;save();render();window.scrollTo(0,y)}
+function upgrade(i){const t=G.teams[G.me],c=upCost(t,i);if(!canSp(c)||t.car[i]>=capOf(G.me,i)||invDone('dev'))return;G.bud-=c;t.car[i]++;invMark('dev');save();render()}
+function rdInvest(k,m){const t=G.teams[G.me];if(!canSp(m)||t.rd[k]>=RD_MAX||invDone('rd'))return;G.bud-=m;t.rd[k]=Math.min(RD_MAX,t.rd[k]+m);invMark('rd');const y=window.scrollY;save();render();window.scrollTo(0,y)}
 function setTab(k){G.tab=k;G.note='';save();render()}
 function signAcad(i){const d=G.f2[i];if(!d||d.own)return;if(d.ow&&d.ow!=G.cur+1){G.note=d.n+' ya pertenece a la academia de otro jugador.';render();return}if(G.f2.filter(x=>x.own).length>=2){G.note='La academia tiene un máximo de 2 jóvenes.';render();return}d.own=true;G.note='Fichaste a '+d.n+' para la academia (0,15 M por carrera). Se desarrolla un punto extra por temporada.';save();render()}
 function dropAcad(i){const d=G.f2[i];if(d){d.own=false;G.note='Liberaste a '+d.n+' de la academia.';save();render()}}
 function toMarket(){saveP();
-  G.rk=ranking();
+  G.rk=ranking();if(G.me!=null){const q=G.rk.indexOf(G.me)+1;showPop({ic:q==1?'🏆':'🏁',t:q==1?'¡Campeones de constructores!':'Fin de la temporada '+G.s,b:'Tu escudería terminó en el puesto <b>'+q+'º</b> del campeonato de constructores.'})}
+  G.eng={w:0,u:1,pn:0};G.P.forEach(p=>p.eng={w:0,u:1,pn:0});G.teams.forEach(t=>{t.ew=R(5,35);t.eu=1});G.P.forEach(p=>(p.crew||[]).forEach(c=>{if(c.q<82)c.q=Math.min(92,c.q+R(0,3));else if(Math.random()<.4)c.q--;c.w=mWage(c.q)}));G.mm=genMM();
   const f2s=G.f2.slice().sort((a,b)=>b.pts-a.pts||b.s-a.s);f2s.forEach((d,i)=>{d.rank=i+1});
   G.f2.forEach(d=>{d.age++;d.s=Math.min(d.pot,d.s+R(1,4)+(d.own||d.ow?1:0)+(d.rank==1?1:0));d.lic=d.s>=68||d.rank<=3});
   G.fa=G.fa.filter(d=>{dev1(d);return d.age<37&&d.s>=55});
@@ -763,7 +899,8 @@ function nextRace(){G.wx=genWx();G.q=null;G.grid=null;G.phase='main';loadP(0);G.
 function newSeason(){G.s++;G.race=0;G.prize=0;G.last=null;G.wx=genWx();G.q=null;G.grid=null;G.phase='main';
   G.teams.forEach((t,i)=>{t.pts=0;t.dr.forEach(d=>d.pts=0);if(!isH(i))for(let k=0;k<3;k++)if(G.tech.par[k]!==i)t.car[k]=Math.max(50,Math.min(capOf(i,k),t.car[k]+Math.round(gauss())))});
   loadP(0);G.hold=G.np>1;save();render()}
-function reset(){if(!resetArm){resetArm=true;render();return}resetArm=false;G=fresh();ensure();save();render()}
+function reset(){POPQ.unshift({ic:'⚠️',t:'Antes de reiniciar',b:'Si reiniciás, <b>se borra la partida actual</b>.<br><br>Si querés empezar una partida nueva <b>sin perder esta</b>, conviene hacerlo en otra ventana, pero ojo: una ventana común del navegador comparte el mismo guardado y pisaría esta partida. Abrí el juego en una <b>ventana de incógnito</b> o en <b>otro navegador o perfil</b>, así las dos partidas quedan separadas. <span class="sm">(En incógnito, esa partida se borra al cerrar la ventana.)</span>',acts:[['Cancelar','closePop()'],['Reiniciar de todos modos','closePop();doReset()']]});drawPop()}
+function doReset(){resetArm=false;G=fresh();ensure();save();render()}
 // ---------- vistas ----------
 const dot=c=>'<span class="dot" style="background:'+c+'"></span>';
 function tblTeams(){const r=ranking();
@@ -784,7 +921,7 @@ function vTech(t){const T=G.tech,idx=G.teams.map((x,i)=>i);
   const rows=COMP.map((n,k)=>{const pr=T.par[k],p=rdChance(t,k),yr=1-Math.pow(1-p,CIRC.length),full=t.rd[k]>=RD_MAX;
     return '<div style="margin:8px 0;padding:8px 10px;border:1px solid rgba(255,255,255,.14);border-radius:10px"><div><b>'+n+'</b> · Era '+T.era[k]+': <span class="sm">'+techName(k,T.era[k])+'</span></div>'+
     '<div class="sm">Referente: '+(pr<0?'ninguno todavía (tecnología base)':dot(G.teams[pr].c)+'<b>'+G.teams[pr].n+'</b> ('+CAPP+')')+' · Tu I+D: <b>'+t.rd[k]+'</b> pts · Chance de descubrimiento: <b>'+(p*100).toFixed(1)+'%</b> por carrera (~'+Math.round(yr*100)+'% por temporada)</div>'+
-    '<div class="row" style="margin-top:6px">'+btnF(false,'rdInvest('+k+',2)','Invertir $2 M',!canSp(2)||full)+btnF(false,'rdInvest('+k+',5)','Invertir $5 M',!canSp(5)||full)+(full?'<span class="sm">Equipo de investigación al máximo.</span>':'')+'</div></div>'}).join('');
+    '<div class="row" style="margin-top:6px">'+btnF(false,'rdInvest('+k+',2)','Invertir $2 M',!canSp(2)||full||invDone('rd'))+btnF(false,'rdInvest('+k+',5)','Invertir $5 M',!canSp(5)||full||invDone('rd'))+(full?'<span class="sm">Equipo de investigación al máximo.</span>':'')+'</div></div>'}).join('');
   const hist=T.hist.slice(0,3).map(e=>'<div class="sm">T'+e.s+' · carrera '+e.race+': '+dot(G.teams[e.ti].c)+G.teams[e.ti].n+' → '+e.name+' ('+COMP[e.k]+')</div>').join('');
   const tab='<details style="margin-top:6px"><summary class="sm" style="cursor:pointer">Mapa tecnológico del pelotón</summary><div class="wrap"><table><tr><th>Escudería</th>'+COMP.map(n=>'<th>'+n+'</th>').join('')+'</tr>'+
     idx.slice().sort((a,b)=>carR(G.teams[b],'m')-carR(G.teams[a],'m')).map(i=>{const x=G.teams[i];return '<tr'+(isH(i)?' class="me"':'')+'><td>'+dot(x.c)+x.n+'</td>'+[0,1,2].map(k=>'<td>'+x.car[k]+(T.par[k]===i?' ★':'')+'</td>').join('')+'</tr>'}).join('')+'</table></div></details>';
@@ -796,8 +933,8 @@ function vWeek(){
   const up=COMP.map((n,i)=>{const cost=upCost(t,i),mx=t.car[i]>=capOf(G.me,i);return btn(false,'upgrade('+i+')',mx?n+' '+t.car[i]+' · máximo':n+' '+t.car[i]+' → '+(t.car[i]+1)+' · $'+f1(cost)+' M',!canSp(cost)||mx)}).join('');
   return head()+
   '<div class="card"><h2>Carrera '+(G.race+1)+' de '+CIRC.length+': '+c[0]+'</h2><div class="sm">🏟️ <b>'+c[2]+'</b><br>'+k[0]+'.'+(CR[c[0]]&&CR[c[0]].d?'<br>'+CR[c[0]].d+'.':'')+'<br>🚨 Riesgo de safety car del circuito: <b>'+scRisk(c[0])+'</b> (sube con la lluvia, el desgaste de las gomas y la cantidad de pilotos que arriesgan).<br>🌦 Probabilidad de lluvia este fin de semana: <b>'+Math.round(G.wx.pr*100)+'%</b>. Con lluvia pesa más el piloto y hay más azar; con neumáticos de seco bajo la lluvia se pierde muchísimo ritmo.</div></div>'+
+  prCard()+
   '<div class="card"><h2>Puesta a punto</h2><div class="row">'+su+'</div><div class="sm" style="margin-top:6px">'+SUD[G.setup]+' El número entre paréntesis es la ganancia de ritmo del auto en este circuito, según tus componentes. Vale para la clasificación y la carrera.</div></div>'+
-  '<div class="card"><h2>Desarrollo del auto</h2><div class="row">'+up+'</div><div class="sm" style="margin-top:6px">Cada mejora suma +1 al componente y cuesta más cuanto más alto está. Auto en este circuito con tu puesta a punto: <b>'+f1(carE(t,c[1],G.setup))+'</b>. El desarrollo convencional tiene un techo de '+CAPN+': para superarlo hace falta una tecnología nueva (ver I+D).</div>'+hintFin()+'</div>'+vTech(t)+
   '<div class="card"><div class="sm" style="margin-bottom:8px">Sábado: la clasificación define la parrilla. Domingo: elegís estilo, paradas y neumáticos, ya con el parte del clima.</div><button class="big" onclick="startQuali()">'+(G.np>1&&G.cur<G.np-1?'✔ Terminar mi turno':'⏱ Ir a la clasificación del sábado')+'</button></div>'+
   '<div class="grid">'+tblTeams()+tblDrivers()+'</div>'+foot()}
 function vQuali(){
@@ -805,40 +942,41 @@ function vQuali(){
   if(seg>0){const pv=seg-1,list=Q.ents.filter(e=>e.res[pv]!=null).sort((a,b)=>b.res[pv]-a.res[pv]),top=list[0].res[pv];
     tbl='<div class="card"><h2>Resultado de '+names[pv]+'</h2><div class="wrap"><table><tr><th>#</th><th>Piloto</th><th>Escudería</th><th>Dif.</th><th></th></tr>'+list.map((e,k)=>{const x=G.teams[e.ti];return '<tr'+(e.ti==G.me?' class="me"':'')+'><td>'+(k+1)+'</td><td>'+x.dr[e.di].n+'</td><td>'+dot(x.c)+x.n+'</td><td>'+(k?'+'+((top-e.res[pv])*.08).toFixed(3)+' s':'pole')+'</td><td>'+(e.pos?'<span class="neg">eliminado: largará '+e.pos+'º</span>':'pasa a '+names[seg])+'</td></tr>'}).join('')+'</table></div></div>'}
   const cards=mineAlive.map(e=>{const d=G.teams[e.ti].dr[e.di];return '<div class="card"><h2>'+(G.np>1?dot(G.teams[e.ti].c)+G.teams[e.ti].n+' · ':'')+d.n+' <span class="sm">(nivel '+d.s+')</span></h2><div class="sm">Ritmo para '+names[seg]+'</div><div class="row">'+[0,1,2].map(v=>btn(e.push==v,'setQ('+e.ti+','+e.di+','+v+')',QN[v]+(favSt(d)==v?' ★':''))).join('')+'</div><div class="sm">'+QD[e.push]+'</div>'+fsInfoQ(d,e.push)+'</div>'}).join('');
-  return head()+'<div class="card"><h2>⏱ Clasificación del sábado · '+names[seg]+'</h2><div class="sm">Pista '+(wet?'🌧️ mojada: pesa más el piloto y hay más azar.':'☀️ seca.')+(seg==0?' Los 6 más lentos de Q1 y de Q2 largan al fondo; los 10 mejores se juegan la pole en Q3.':'')+'</div></div>'+tbl+cards+
+  return head()+'<div class="card"><h2>⏱ Clasificación del sábado · '+names[seg]+'</h2><div class="sm">Pista '+(wet?'🌧️ mojada: pesa más el piloto y hay más azar.':'☀️ seca.')+(seg==0?' Los 6 más lentos de Q1 y de Q2 largan al fondo; los 10 mejores se juegan la pole en Q3.':'')+'</div></div>'+tbl+qtCard()+cards+
     '<div class="card"><button class="big" onclick="runSeg()">'+(G.np>1&&qNext()<G.np?'✔ Terminar mi turno':'Salir a pista: '+names[seg]+' ▶')+'</button></div>'+leaveBar()}
 function vGrid(){
   const t=G.teams[G.me],btn=btnF,pole=G.grid[0].best,c=CIRC[G.race],wx=G.wx;
   const rows=G.grid.map(g=>{const x=G.teams[g.ti];return '<tr'+(isH(g.ti)?' class=\"me\"':'')+'><td>'+g.pos+'</td><td>'+x.dr[g.di].n+'</td><td>'+dot(x.c)+x.n+'</td><td>'+(g.pos==1?'pole':'+'+((pole-g.best)*.08).toFixed(3)+' s')+'</td></tr>'}).join('');
   const drv=[0,1].map(di=>'<div class="card"><h2>'+t.dr[di].n+' <span class="sm">(sale '+G.grid.find(g=>g.ti==G.me&&g.di==di).pos+'º)</span></h2><div class="sm">Estilo de conducción</div><div class="row">'+[0,1,2].map(v=>btn(G.style[di]==v,'setStyle('+di+','+v+')',STY[v]+(favSt(t.dr[di])==v?' ★':''))).join('')+'</div><div class="sm">'+STYD[G.style[di]]+'</div>'+fsInfo(t.dr[di],G.style[di])+'<div class="sm" style="margin-top:8px">Estrategia de paradas</div><div class="row">'+btn(G.strat[di]==1,'setStrat('+di+',1)','Una parada')+btn(G.strat[di]==2,'setStrat('+di+',2)','Dos paradas')+'</div><div class="sm" style="margin-top:8px">Neumático inicial</div><div class="row">'+[0,1,2,3].map(v=>btn(G.comp[di]==v,'setComp('+di+','+v+')',CP[v].n)).join('')+'</div><div class="sm">'+CPD[G.comp[di]]+'</div></div>').join('');
   return head()+'<div class="card"><h2>Parrilla de '+c[0]+' <span class="sm">· '+c[2]+'</span></h2><div class="wrap"><table><tr><th>#</th><th>Piloto</th><th>Escudería</th><th>Mejor vuelta</th></tr>'+rows+'</table></div><div class="sm" style="margin-top:6px">Largar adelante da ventaja en los primeros tramos, y más en circuitos donde cuesta adelantar (Puerto Soleado, técnicos).'+(CR[c[0]]&&CR[c[0]].d?' '+CR[c[0]].d+'.':'')+'</div></div>'+
-  '<div class="card"><h2>🌦 Parte del domingo</h2><div class="sm">Al inicio la pista estará <b>'+(wx.r[0]?'🌧️ mojada':'☀️ seca')+'</b>. Probabilidad de lluvia durante la carrera: <b>'+Math.round(wx.pr*100)+'%</b>. Si el clima cambia en carrera, podés llamar a boxes a un piloto para cambiar de neumáticos.</div></div>'+
+  tmpCard()+'<div class="card"><h2>🌦 Parte del domingo</h2><div class="sm">Al inicio la pista estará <b>'+(wx.r[0]?'🌧️ mojada':'☀️ seca')+'</b>. Probabilidad de lluvia durante la carrera: <b>'+Math.round(wx.pr*100)+'%</b>. Si el clima cambia en carrera, podés llamar a boxes a un piloto para cambiar de neumáticos.</div></div>'+
   tpCard(false)+'<div class="grid">'+drv+'</div><div class="sm" style="margin:-4px 2px 6px">★ Cada piloto tiene un estilo favorito: si corre con él rinde más; si usa otro pierde ritmo (más todavía con el opuesto).<br>Una parada es más rápida pero desgasta más los neumáticos (sobre todo con estilo arriesgado); dos paradas pierden tiempo en boxes y los protegen. Regla: hay que usar al menos dos compuestos distintos o hay +10 s de penalización (no rige en carreras con lluvia).</div>'+
   '<div class="card"><div class="sm" style="margin-bottom:8px">Cuando tus pilotos entren a boxes, o cambie el clima, la carrera se pausa: podés ver las posiciones y ajustar estilo, neumáticos y paradas.</div><button class="big" onclick="startRace()">'+(G.np>1&&G.cur<G.np-1?'✔ Terminar mi turno':'🏁 Largar el '+c[0])+'</button></div>'+foot()}
-function tabsH(){return '<div class="row" style="margin:8px 0">'+btnF(G.tab!='dr'&&G.tab!='fin',"setTab('wk')",'🏁 Fin de semana')+btnF(G.tab=='dr',"setTab('dr')",'👤 Pilotos y Promesas')+btnF(G.tab=='fin',"setTab('fin')",'💰 Finanzas')+'</div>'}
-function vMain(){if(G.tab=='fin')return head()+tabsH()+vFin(false)+'<div class="grid">'+tblTeams()+tblDrivers()+'</div>'+foot();if(G.tab=='dr')return head()+tabsH()+vDrv(false)+'<div class="grid">'+tblTeams()+tblDrivers()+'</div>'+foot();const h=head();return vWeek().replace(h,h+tabsH())}
+function tabsH(){const t=G.tab,B=btnF;return '<div class="row" style="margin:8px 0">'+B(!['dr','fin','mec','dev','rd'].includes(t),"setTab('wk')",'🏁 Fin de semana')+B(t=='dev',"setTab('dev')",'🛠 Desarrollo del auto')+B(t=='rd',"setTab('rd')",'🔬 I+D')+B(t=='dr',"setTab('dr')",'👤 Pilotos y Promesas')+B(t=='fin',"setTab('fin')",'💰 Finanzas')+B(t=='mec',"setTab('mec')",'🔧 Mecánicos')+'</div>'}
+function vMain(){if(G.tab=='dev')return head()+tabsH()+vDev()+'<div class="grid">'+tblTeams()+tblDrivers()+'</div>'+foot();if(G.tab=='rd')return head()+tabsH()+vRd()+'<div class="grid">'+tblTeams()+tblDrivers()+'</div>'+foot();if(G.tab=='mec')return head()+tabsH()+vMec(false)+'<div class="grid">'+tblTeams()+tblDrivers()+'</div>'+foot();if(G.tab=='fin')return head()+tabsH()+vFin(false)+'<div class="grid">'+tblTeams()+tblDrivers()+'</div>'+foot();if(G.tab=='dr')return head()+tabsH()+vDrv(false)+'<div class="grid">'+tblTeams()+tblDrivers()+'</div>'+foot();const h=head();return vWeek().replace(h,h+tabsH())}
 const noteH=()=>G.note?'<div class="card" style="border-color:var(--acc)"><div class="sm" style="color:var(--fg)">'+G.note+'</div></div>':'';
 function vDrv(mkt){
   const t=G.teams[G.me],own=G.f2.filter(d=>d.own),slots=2-own.length,btn=btnF,lic=d=>d.lic?' 🪪':'';
   const f2s=G.f2.map((d,i)=>({d,i})).sort((a,b)=>b.d.pts-a.d.pts||b.d.s-a.d.s);
-  let h=(mkt?'':noteH())+'<div class="card"><h2>Mis pilotos</h2><div class="wrap"><table><tr><th>Piloto</th><th>Edad</th><th>Nivel</th><th>Pot.</th><th>Estilo</th><th>Colaboración</th><th>Contrato</th><th>Sueldo</th></tr>'+t.dr.map(d=>'<tr><td>'+d.n+'</td><td>'+d.age+'</td><td><b>'+d.s+'</b></td><td>'+d.pot+'</td><td>'+STY[favSt(d)]+'</td><td>'+coLabel(coOf(d))+' ('+coOf(d)+')</td><td>'+(d.ct>0?d.ct+' temp.':'<b class="neg">vence</b>')+'</td><td>'+f2d(d.w)+' M/carrera</td></tr>').join('')+'</table></div></div>';
-  h+='<div class="card"><h2>Academia (Liga de Promesas) · '+own.length+' de 2 lugares</h2>'+(own.length?'<div class="wrap"><table><tr><th>Joven</th><th>Edad</th><th>Nivel</th><th>Pot.</th><th>Estilo</th><th>Pts Promesas</th><th></th></tr>'+f2s.filter(x=>x.d.own).map(x=>'<tr class="me"><td>'+x.d.n+lic(x.d)+'</td><td>'+x.d.age+'</td><td><b>'+x.d.s+'</b></td><td>'+x.d.pot+'</td><td>'+STY[favSt(x.d)]+'</td><td>'+x.d.pts+'</td><td>'+(mkt&&x.d.lic?btn(false,'promote('+x.i+')','Promover a la máxima categoría'):'')+btn(false,'dropAcad('+x.i+')','Liberar')+'</td></tr>').join('')+'</table></div>':'<div class="sm">Todavía no tenés jóvenes en la academia.</div>')+'<div class="sm" style="margin-top:6px">Cada joven cuesta 0,15 M por carrera y mejora un punto extra por temporada. Para correr en la máxima categoría necesita la licencia de élite 🪪: nivel 68 o más, o terminar entre los 3 primeros de la Liga de Promesas. Se le revisa al cierre de la temporada. Los jóvenes salen de la Liga de Promesas a los 26 años.</div></div>';
-  h+='<div class="card"><h2>Campeonato de Promesas (temporada '+G.s+')</h2><div class="wrap"><table><tr><th>#</th><th>Piloto</th><th>Edad</th><th>Nivel</th><th>Pot.</th><th>Estilo</th><th>Pts</th><th></th></tr>'+f2s.slice(0,10).map((x,k)=>'<tr'+(x.d.own?' class="me"':'')+'><td>'+(k+1)+'</td><td>'+x.d.n+lic(x.d)+'</td><td>'+x.d.age+'</td><td>'+x.d.s+'</td><td>'+x.d.pot+'</td><td>'+STY[favSt(x.d)]+'</td><td><b>'+x.d.pts+'</b></td><td>'+(!x.d.own&&slots>0?btn(false,'signAcad('+x.i+')','Fichar'):'')+'</td></tr>').join('')+'</table></div></div>';
+  let h=(mkt?'':noteH())+'<div class="card"><h2>Mis pilotos</h2><div class="wrap"><table><tr><th>Piloto</th><th>Edad</th><th>Nivel</th><th>Pot.</th><th>Estilo</th><th>Exp.</th><th>Colaboración</th><th>Contrato</th><th>Sueldo</th></tr>'+t.dr.map(d=>'<tr><td>'+d.n+'</td><td>'+d.age+'</td><td><b>'+d.s+'</b></td><td>'+d.pot+'</td><td>'+STY[favSt(d)]+'</td><td>'+Math.round(xpOf(d))+'</td><td>'+coLabel(coOf(d))+' ('+coOf(d)+')</td><td>'+(d.ct>0?d.ct+' temp.':'<b class="neg">vence</b>')+'</td><td>'+f2d(d.w)+' M/carrera</td></tr>').join('')+'</table></div></div>';
+  h+='<div class="card"><h2>Academia (Liga de Promesas) · '+own.length+' de 2 lugares</h2>'+(own.length?'<div class="wrap"><table><tr><th>Joven</th><th>Edad</th><th>Nivel</th><th>Pot.</th><th>Estilo</th><th>Exp.</th><th>Pts Promesas</th><th></th></tr>'+f2s.filter(x=>x.d.own).map(x=>'<tr class="me"><td>'+x.d.n+lic(x.d)+'</td><td>'+x.d.age+'</td><td><b>'+x.d.s+'</b></td><td>'+x.d.pot+'</td><td>'+STY[favSt(x.d)]+'</td><td>'+Math.round(xpOf(x.d))+'</td><td>'+x.d.pts+'</td><td>'+(mkt&&x.d.lic?btn(false,'promote('+x.i+')','Promover a la máxima categoría'):'')+btn(false,'dropAcad('+x.i+')','Liberar')+'</td></tr>').join('')+'</table></div>':'<div class="sm">Todavía no tenés jóvenes en la academia.</div>')+'<div class="sm" style="margin-top:6px">Cada joven cuesta 0,15 M por carrera y mejora un punto extra por temporada. Para correr en la máxima categoría necesita la licencia de élite 🪪: nivel 68 o más, o terminar entre los 3 primeros de la Liga de Promesas. Se le revisa al cierre de la temporada. Los jóvenes salen de la Liga de Promesas a los 26 años.</div></div>';
+  h+='<div class="card"><h2>Campeonato de Promesas (temporada '+G.s+')</h2><div class="wrap"><table><tr><th>#</th><th>Piloto</th><th>Edad</th><th>Nivel</th><th>Pot.</th><th>Estilo</th><th>Exp.</th><th>Pts</th><th></th></tr>'+f2s.slice(0,10).map((x,k)=>'<tr'+(x.d.own?' class="me"':'')+'><td>'+(k+1)+'</td><td>'+x.d.n+lic(x.d)+'</td><td>'+x.d.age+'</td><td>'+x.d.s+'</td><td>'+x.d.pot+'</td><td>'+STY[favSt(x.d)]+'</td><td>'+Math.round(xpOf(x.d))+'</td><td><b>'+x.d.pts+'</b></td><td>'+(!x.d.own&&slots>0?btn(false,'signAcad('+x.i+')','Fichar'):'')+'</td></tr>').join('')+'</table></div></div>';
   const pro=f2s.filter(x=>!x.d.own).sort((a,b)=>b.d.pot-a.d.pot||b.d.s-a.d.s).slice(0,8);
-  h+='<div class="card"><h2>Jóvenes con más potencial</h2><div class="wrap"><table><tr><th>Piloto</th><th>Edad</th><th>Nivel</th><th>Pot.</th><th>Estilo</th><th>Pts Promesas</th><th></th></tr>'+pro.map(x=>'<tr><td>'+x.d.n+lic(x.d)+'</td><td>'+x.d.age+'</td><td>'+x.d.s+'</td><td><b>'+x.d.pot+'</b></td><td>'+STY[favSt(x.d)]+'</td><td>'+x.d.pts+'</td><td>'+(slots>0?btn(false,'signAcad('+x.i+')','Fichar para la academia'):'')+'</td></tr>').join('')+'</table></div></div>';
+  h+='<div class="card"><h2>Jóvenes con más potencial</h2><div class="wrap"><table><tr><th>Piloto</th><th>Edad</th><th>Nivel</th><th>Pot.</th><th>Estilo</th><th>Exp.</th><th>Pts Promesas</th><th></th></tr>'+pro.map(x=>'<tr><td>'+x.d.n+lic(x.d)+'</td><td>'+x.d.age+'</td><td>'+x.d.s+'</td><td><b>'+x.d.pot+'</b></td><td>'+STY[favSt(x.d)]+'</td><td>'+Math.round(xpOf(x.d))+'</td><td>'+x.d.pts+'</td><td>'+(slots>0?btn(false,'signAcad('+x.i+')','Fichar para la academia'):'')+'</td></tr>').join('')+'</table></div></div>';
   return h}
 function vMarket(){
   const t=G.teams[G.me],btn=btnF,rk=myRank(),seats=2-t.dr.length,races=CIRC.length;
   const exp=t.dr.map((d,i)=>({d,i})).filter(x=>x.d.ct<=0),vig=t.dr.map((d,i)=>({d,i})).filter(x=>x.d.ct>0);
   const dur=(fn,d)=>[1,2,3].map(n=>btn(false,fn+','+n+')',n+(n==1?' año':' años')+' · '+f2d(wage(d.s,n,rk))+' M')).join('');
   let h=head()+'<div class="card"><h2>🤝 Mercado de pilotos · temporada '+G.s+' terminada</h2><div class="sm">Los pilotos jóvenes mejoraron y los veteranos bajaron. Las demás escuderías ya resolvieron sus contratos que vencían. Un contrato más largo sale más barato por carrera, pero si el piloto declina o explota, pagás de más. Los pilotos de nivel alto piden un 20 % más si tu escudería terminó en la segunda mitad de la tabla. Tenés <b>'+(seats>0?seats+' asiento(s) libre(s)':'los dos asientos ocupados')+'</b>.</div></div>'+noteH();
-  h+='<div class="card"><h2>Contratos que vencen</h2>'+(exp.length?'<div class="wrap"><table><tr><th>Piloto</th><th>Edad</th><th>Nivel</th><th>Pot.</th><th>Estilo</th><th>Renovar</th><th></th></tr>'+exp.map(x=>'<tr><td>'+x.d.n+'</td><td>'+x.d.age+'</td><td><b>'+x.d.s+'</b></td><td>'+x.d.pot+'</td><td>'+STY[favSt(x.d)]+'</td><td class="row">'+dur('renew('+x.i,x.d)+'</td><td>'+btn(false,'letGo('+x.i+')','Dejar ir')+'</td></tr>').join('')+'</table></div>':'<div class="sm">Ningún contrato vence este año.</div>')+'</div>';
+  h+='<div class="card"><h2>Contratos que vencen</h2>'+(exp.length?'<div class="wrap"><table><tr><th>Piloto</th><th>Edad</th><th>Nivel</th><th>Pot.</th><th>Estilo</th><th>Exp.</th><th>Renovar</th><th></th></tr>'+exp.map(x=>'<tr><td>'+x.d.n+'</td><td>'+x.d.age+'</td><td><b>'+x.d.s+'</b></td><td>'+x.d.pot+'</td><td>'+STY[favSt(x.d)]+'</td><td>'+Math.round(xpOf(x.d))+'</td><td class="row">'+dur('renew('+x.i,x.d)+'</td><td>'+btn(false,'letGo('+x.i+')','Dejar ir')+'</td></tr>').join('')+'</table></div>':'<div class="sm">Ningún contrato vence este año.</div>')+'</div>';
   if(vig.length)h+='<div class="card"><h2>Contratos vigentes</h2><div class="wrap"><table><tr><th>Piloto</th><th>Contrato</th><th>Sueldo</th><th></th></tr>'+vig.map(x=>'<tr><td>'+x.d.n+' <span class="sm">('+x.d.age+' años, nivel '+x.d.s+')</span></td><td>'+x.d.ct+' temp.</td><td>'+f2d(x.d.w)+' M</td><td>'+btn(false,'buyout('+x.i+')','Rescindir · '+f1(x.d.w*races*x.d.ct*.4)+' M')+'</td></tr>').join('')+'</table></div><div class="sm" style="margin-top:6px">Rescindir cuesta el 40 % del sueldo que falta pagar.</div></div>';
   const fa=G.fa.map((d,i)=>({d,i})).sort((a,b)=>b.d.s-a.d.s),gr=G.f2.map((d,i)=>({d,i})).filter(x=>x.d.lic&&!x.d.own).sort((a,b)=>b.d.s-a.d.s);
-  h+='<div class="card"><h2>Pilotos libres</h2>'+(fa.length?'<div class="wrap"><table><tr><th>Piloto</th><th>Edad</th><th>Nivel</th><th>Pot.</th><th>Estilo</th><th>Fichar</th></tr>'+fa.slice(0,12).map(x=>'<tr><td>'+x.d.n+'</td><td>'+x.d.age+'</td><td><b>'+x.d.s+'</b></td><td>'+x.d.pot+'</td><td>'+STY[favSt(x.d)]+'</td><td class="row">'+dur('signFa('+x.i,x.d)+'</td></tr>').join('')+'</table></div>':'<div class="sm">No hay pilotos libres.</div>')+'</div>';
-  h+='<div class="card"><h2>Graduados de Promesas (con licencia de élite 🪪)</h2>'+(gr.length?'<div class="wrap"><table><tr><th>Piloto</th><th>Edad</th><th>Nivel</th><th>Pot.</th><th>Estilo</th><th>Pts Promesas</th><th>Fichar</th></tr>'+gr.slice(0,10).map(x=>'<tr><td>'+x.d.n+'</td><td>'+x.d.age+'</td><td><b>'+x.d.s+'</b></td><td>'+x.d.pot+'</td><td>'+STY[favSt(x.d)]+'</td><td>'+x.d.pts+'</td><td class="row">'+dur('signGrad('+x.i,x.d)+'</td></tr>').join('')+'</table></div>':'<div class="sm">Este año ningún joven consiguió la licencia de élite.</div>')+'</div>';
+  h+='<div class="card"><h2>Pilotos libres</h2>'+(fa.length?'<div class="wrap"><table><tr><th>Piloto</th><th>Edad</th><th>Nivel</th><th>Pot.</th><th>Estilo</th><th>Exp.</th><th>Fichar</th></tr>'+fa.slice(0,12).map(x=>'<tr><td>'+x.d.n+'</td><td>'+x.d.age+'</td><td><b>'+x.d.s+'</b></td><td>'+x.d.pot+'</td><td>'+STY[favSt(x.d)]+'</td><td>'+Math.round(xpOf(x.d))+'</td><td class="row">'+dur('signFa('+x.i,x.d)+'</td></tr>').join('')+'</table></div>':'<div class="sm">No hay pilotos libres.</div>')+'</div>';
+  h+='<div class="card"><h2>Graduados de Promesas (con licencia de élite 🪪)</h2>'+(gr.length?'<div class="wrap"><table><tr><th>Piloto</th><th>Edad</th><th>Nivel</th><th>Pot.</th><th>Estilo</th><th>Exp.</th><th>Pts Promesas</th><th>Fichar</th></tr>'+gr.slice(0,10).map(x=>'<tr><td>'+x.d.n+'</td><td>'+x.d.age+'</td><td><b>'+x.d.s+'</b></td><td>'+x.d.pot+'</td><td>'+STY[favSt(x.d)]+'</td><td>'+Math.round(xpOf(x.d))+'</td><td>'+x.d.pts+'</td><td class="row">'+dur('signGrad('+x.i,x.d)+'</td></tr>').join('')+'</table></div>':'<div class="sm">Este año ningún joven consiguió la licencia de élite.</div>')+'</div>';
   h+=vDrv(true);
   h+=vFin(true);
+  h+=vMec(true);
   h+='<div class="card"><div class="sm" style="margin-bottom:8px">Al cerrar el mercado, las demás escuderías fichan a los libres y graduados que queden (primero las mejor ubicadas) y empieza la temporada '+(G.s+1)+'.</div><button class="big" onclick="closeMarket()">'+(G.np>1&&G.cur<G.np-1?'✔ Terminar mi mercado':'Cerrar el mercado y empezar la temporada '+(G.s+1)+' ▶')+'</button></div>'+foot();
   return h}
 function vRace(){
@@ -847,12 +985,12 @@ function vRace(){
     return '<tr'+(x.ti==G.me&&x.mine?' class="me"':'')+'><td>'+(x.dnf?'—':k+1)+'</td><td>'+t.dr[x.di].n+'</td><td>'+dot(t.c)+t.n+'</td><td>'+(x.dnf?'<span class="neg">abandonó (v.'+x.dlap+')</span>':(k?'+'+((lead.sum-x.sum)*.5).toFixed(1)+' s':'líder'))+'</td><td>'+(x.ti==G.me&&x.mine&&!x.dnf?CP[x.cp].n+' '+Math.round(x.age*10)+' v. · '+STY[x.st]+fsMk(t.dr[x.di],x.st)+' · '+x.pits+' parada(s), '+left+' pendiente(s)':'')+'</td></tr>'}).join('');
   const others=L.ent.map((x,i)=>i).filter(i=>L.ent[i].mine&&L.ent[i].ti==G.me&&!L.ent[i].dnf&&!L.pit.includes(i)).map(i=>{const x=L.ent[i],d=G.teams[x.ti].dr[x.di],mm=(L.fc&&x.cp!=3)||(!L.fc&&x.cp==3);return '<div class="card"><h2>'+d.n+' sigue en pista</h2><div class="sm">Neumático: '+CP[x.cp].n+' ('+Math.round(x.age*10)+' v.) · Estilo: '+STY[x.st]+fsMk(d,x.st)+(mm?' · <b class="neg">no coincide con la previsión</b>':'')+'</div><div class="row" style="margin-top:6px"><button onclick="callPit('+i+')">⛽ Llamar a boxes ahora</button></div></div>'}).join('');
   const cards=L.pit.filter(i=>L.ent[i].ti==G.me).map(i=>{const x=L.ent[i],t=G.teams[x.ti],d=t.dr[x.di],pos=ord.indexOf(i)+1,later=x.sched.filter(q=>q>L.sec);
-    return '<div class="card"><h2>⛽ '+d.n+' entra a boxes (vuelta '+lap+')</h2><div class="sm">Va '+pos+'º'+(pos>1?', a '+((lead.sum-x.sum)*.5).toFixed(1)+' s del líder':'')+'. Cambió gomas usadas '+Math.round(x.pa*10)+' vueltas. Hasta el final quedan '+(SEC-L.sec)*10+' vueltas.</div>'+
+    return '<div class="card"><h2>⛽ '+d.n+' entra a boxes (vuelta '+lap+')</h2><div class="sm">'+(x.rp?'<b class="neg">'+x.rp+'</b> ':'')+'Va '+pos+'º'+(pos>1?', a '+((lead.sum-x.sum)*.5).toFixed(1)+' s del líder':'')+'. Cambió gomas usadas '+Math.round(x.pa*10)+' vueltas. Hasta el final quedan '+(SEC-L.sec)*10+' vueltas.</div>'+
       '<div class="sm" style="margin-top:8px">Estilo para el resto de la carrera</div><div class="row">'+[0,1,2].map(v=>btn(x.st==v,'setLStyle('+i+','+v+')',STY[v]+(favSt(d)==v?' ★':''))).join('')+'</div><div class="sm">'+STYD[x.st]+'</div>'+fsInfo(d,x.st)+
       '<div class="sm" style="margin-top:8px">Neumático para el próximo tramo (ya usaste: '+x.used.map(q=>CP[q].n).join(', ')+')</div><div class="row">'+[0,1,2,3].map(v=>btn(x.cp==v,'setLComp('+i+','+v+')',CP[v].n)).join('')+'</div><div class="sm">'+CPD[x.cp]+(x.used.length<2&&x.used.includes(x.cp)&&!later.length&&!L.wetRace?' <b class="neg">Con este compuesto no cumplirías la regla de dos compuestos (+10 s de penalización).</b>':'')+'</div>'+
       '<div class="sm" style="margin-top:8px">Próxima parada</div><div class="row">'+(later.length?btn(false,'toggleStop('+i+')','Cancelar la parada de la vuelta '+later[0]*10):(L.sec<=3?btn(false,'toggleStop('+i+')','Agregar otra parada (vuelta '+(L.sec+2)*10+')'):'<span class="sm">Ya no hay tiempo para otra parada.</span>'))+'</div>'+
       '<div class="sm">'+(later.length?'Cancelarla ahorra tiempo en boxes pero las gomas llegan muy gastadas al final.':'Una parada extra cuesta tiempo en boxes pero renueva las gomas.')+'</div></div>'}).join('');
-  return head()+'<div class="card"><h2>🏁 '+c[0]+' <span class="sm">('+c[2]+')</span> · vuelta '+lap+' de '+LAPS+'</h2><div class="sm">'+(L.sc?'<b class="neg">🚨 SAFETY CAR por '+L.scCause+'.</b> Parar ahora cuesta mucho menos tiempo y el pelotón se compacta. ':'')+(L.pit.some(i=>L.ent[i].ti==G.me)?'Tus pilotos entraron a boxes. ':(L.sc?'':'Cambio de condiciones: '))+'Clima ahora: '+(L.wx[L.sec-1]?'🌧️ lluvia':'☀️ seco')+' · previsión para el próximo tramo: <b>'+(L.fc?'🌧️ lluvia':'☀️ seco')+'</b> (fiabilidad ~85 %). Mirá la carrera y ajustá la estrategia antes de continuar.</div></div>'+(L.ent.filter(x=>x.ti==G.me&&x.mine&&!x.dnf).length==2?tpCard(true):'')+cards+others+
+  return head()+'<div class="card"><h2>🏁 '+c[0]+' <span class="sm">('+c[2]+')</span> · vuelta '+lap+' de '+LAPS+'</h2><div class="sm">'+(L.sc?'<b class="neg">🚨 SAFETY CAR por '+L.scCause+'.</b> Parar ahora cuesta mucho menos tiempo y el pelotón se compacta. ':'')+(L.pit.some(i=>L.ent[i].ti==G.me)?'Tus pilotos entraron a boxes. ':(L.sc?'':'Cambio de condiciones: '))+'Clima ahora: '+(L.wx[L.sec-1]?'🌧️ lluvia':'☀️ seco')+(L.tm?' · pista '+Math.round(L.tm[L.sec-1])+' °C':'')+' · previsión para el próximo tramo: <b>'+(L.fc?'🌧️ lluvia':'☀️ seco')+'</b> (fiabilidad ~85 %). Mirá la carrera y ajustá la estrategia antes de continuar.</div></div>'+(L.ent.filter(x=>x.ti==G.me&&x.mine&&!x.dnf).length==2?tpCard(true)+ordCard():'')+cards+others+
     '<div class="card"><h2>Posiciones</h2><div class="wrap"><table><tr><th>Pos</th><th>Piloto</th><th>Escudería</th><th>Dif.</th><th>Tus pilotos: neumáticos · estilo · paradas</th></tr>'+rows+'</table></div></div>'+
     (L.log.length?'<div class="card"><h2>Incidentes</h2><div class="sm">'+L.log.join('<br>')+'</div></div>':'')+
     '<div class="card"><button class="big" onclick="contRace()">'+(G.np>1&&rNext()<G.np?'✔ Terminar mi turno':'Continuar la carrera ▶')+'</button></div>'+leaveBar()}
@@ -885,7 +1023,7 @@ const oblig=()=>(G.loans||[]).reduce((m,l)=>m+l.pay*l.left,0);
 function fin(r){const N=CIRC.length,mk=G.phase=='market'||G.race>=N;if(r==null)r=mk?N:Math.max(0,N-G.race);
   const t=G.teams[G.me],sl=t.dr.filter(d=>!mk||d.ct>0).reduce((m,d)=>m+d.w,0),ac=G.f2.filter(d=>d.own).length*.15,
     fx=SLOTS.reduce((m,s)=>m+(G.spon&&G.spon[s]?G.spon[s].f:0),0),loan=(G.loans||[]).reduce((m,l)=>m+l.pay*Math.min(l.left,r),0),
-    wages=sl*r,gastos=(2+ac)*r,guar=(TVB+fx)*r,gross=wages+gastos+loan,blk=Math.max(0,gross-guar);
+    wages=sl*r,gastos=(2+ac+(G.crew||[]).reduce((m,c)=>m+c.w,0))*r,guar=(TVB+fx)*r,gross=wages+gastos+loan,blk=Math.max(0,gross-guar);
   return{r,mk,wages,gastos,loan,guar,gross,blk,free:G.bud-blk}}
 const canSp=c=>fin().free>=c-1e-9;
 function genOffers(k){const ti=G.hum[k],p=G.P[k];if(ti==null||!p)return;const r=rankOf(ti),tf=.75+.5*(11-r)/10,used=new Set(SLOTS.map(s=>p.spon&&p.spon[s]?p.spon[s].nm:''));
@@ -941,7 +1079,7 @@ function vFin(mk){const F=fin(),pct=G.bud>0?clp(F.blk/G.bud*100,0,100):100,N=CIR
   let h=(mk?'':noteH())+'<div class="card"><h2>💰 Presupuesto y fondos bloqueados</h2>'+
   '<div class="row" style="justify-content:space-between"><div><div class="sm">Presupuesto total</div><b style="font-size:20px">$'+f1(G.bud)+' M</b></div><div><div class="sm">🔒 Bloqueado</div><b style="font-size:20px">$'+f1(F.blk)+' M</b></div><div><div class="sm">🔓 Disponible para D+I</div><b style="font-size:20px" class="'+(free>=0?'pos':'neg')+'">$'+f1(Math.max(0,free))+' M</b></div></div>'+
   '<div style="height:10px;border-radius:5px;background:var(--ok);margin:10px 0 6px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:var(--acc)"></div></div>'+
-  '<div class="sm">'+(mk?'Vista previa de la próxima temporada ('+N+' carreras). ':'Hasta el final de la temporada quedan <b>'+F.r+'</b> carreras. ')+'Gastos fijos pendientes: sueldos <b>'+f1(F.wages)+' M</b> + gastos y academia <b>'+f1(F.gastos)+' M</b>'+(F.loan?' + cuotas de préstamos <b>'+f1(F.loan)+' M</b>':'')+' = <b>'+f1(F.gross)+' M</b>. Ingresos garantizados (TV/Federación + sponsors fijos): <b>−'+f1(F.guar)+' M</b>. Bloqueado: <b>'+f1(F.blk)+' M</b>. Los bonos por puntos y objetivos <b>no</b> cuentan: son un extra que te llega recién cuando ocurren.</div></div>'+
+  '<div class="sm">'+(mk?'Vista previa de la próxima temporada ('+N+' carreras). ':'Hasta el final de la temporada quedan <b>'+F.r+'</b> carreras. ')+'Gastos fijos pendientes: sueldos <b>'+f1(F.wages)+' M</b> + gastos, academia y mecánicos <b>'+f1(F.gastos)+' M</b>'+(F.loan?' + cuotas de préstamos <b>'+f1(F.loan)+' M</b>':'')+' = <b>'+f1(F.gross)+' M</b>. Ingresos garantizados (TV/Federación + sponsors fijos): <b>−'+f1(F.guar)+' M</b>. Bloqueado: <b>'+f1(F.blk)+' M</b>. Los bonos por puntos y objetivos <b>no</b> cuentan: son un extra que te llega recién cuando ocurren.</div></div>'+
   '<div class="card"><h2>🤝 Mis sponsors</h2>'+cs+'<div class="sm">Sin sponsors cobrás solo los derechos de TV/Federación ('+f2d(TVB)+' M por carrera). Los sponsors pagan un fijo por carrera, un bono por cada punto y, si pactás objetivo, un bono al final del campeonato. Rescindir cuesta el 25 % del fijo que falta cobrar.</div></div>'+
   '<div class="card"><h2>📨 Ofertas de sponsor principal</h2><div class="sm">Pagan más, y el sponsor principal puede pedirte repintar el auto con sus colores.</div>'+(G.spon.main?'<div class="sm"><b>Ya tenés sponsor principal.</b></div>':(offM||'<div class="sm">No hay ofertas por ahora; llegan nuevas al cierre de la temporada.</div>'))+'</div>'+
   '<div class="card"><h2>📨 Ofertas de sponsors pequeños</h2>'+((G.spon.s1&&G.spon.s2)?'<div class="sm"><b>Tenés los dos lugares ocupados.</b></div>':(offS||'<div class="sm">No hay ofertas por ahora; llegan nuevas al cierre de la temporada.</div>'))+'</div>'+
@@ -952,7 +1090,7 @@ function foot(){return '<div class="row" style="margin:14px 0"><button onclick="
 // Al tocar una opción se vuelve a dibujar la pantalla: se conserva el scroll salvo que cambie de vista (fase, pestaña, turno, tramo de carrera o de clasificación).
 let lastK=null;
 const viewKey=()=>[G.phase,G.tab,edOpen,G.hold,G.cur,G.race,G.live?G.live.sec:'',G.q?G.q.seg:''].join('|');
-function render(){const sy=window.scrollY||(document.documentElement&&document.documentElement.scrollTop)||0,k=viewKey();render0();if(k===lastK)window.scrollTo(0,sy);lastK=viewKey()}
+function render(){const sy=window.scrollY||(document.documentElement&&document.documentElement.scrollTop)||0,k=viewKey();render0();if(k===lastK)window.scrollTo(0,sy);lastK=viewKey();weekPop();drawPop()}
 function render0(){if(G.np>1&&G.hold&&TURNPH.includes(G.phase)){$('app').innerHTML=vHold();window.scrollTo(0,0);return}if(edOpen&&(G.phase=='start'||G.phase=='main')){$('app').innerHTML=vEdit();window.scrollTo(0,0);return}edOpen=false;const v=G.phase=='start'?vStart:G.phase=='main'?vMain:G.phase=='quali'?vQuali:G.phase=='grid'?vGrid:G.phase=='race'?vRace:G.phase=='result'?vResult:G.phase=='market'?vMarket:vEnd;$('app').innerHTML=v();window.scrollTo(0,0)}
 
 // ===== Estadísticas anónimas de uso (Google Sheets + Apps Script) =====
@@ -981,7 +1119,7 @@ window.addEventListener('unhandledrejection',e=>stErr('Promesa: '+(e.reason&&e.r
 // Secciones visitadas (cada una se registra una vez por sesión)
 const stSec=new Set();
 (()=>{const o=render;render=function(){o.apply(this,arguments);try{if(!G||G.phase==='start')return;
-  const k=(typeof edOpen!=='undefined'&&edOpen)?'Editor':G.phase==='main'?(G.tab==='dr'?'Pilotos y Promesas':G.tab==='fin'?'Finanzas':'Fin de semana'):(ST_PH[G.phase]||G.phase);
+  const k=(typeof edOpen!=='undefined'&&edOpen)?'Editor':G.phase==='main'?(G.tab==='dr'?'Pilotos y Promesas':G.tab==='fin'?'Finanzas':G.tab==='mec'?'Mecánicos':G.tab==='dev'?'Desarrollo del auto':G.tab==='rd'?'I+D':'Fin de semana'):(ST_PH[G.phase]||G.phase);
   if(!stSec.has(k)){stSec.add(k);stEv('seccion',k)}}catch(e){}}})();
 
 G=load()||fresh();if(!G.teams||!G.phase||(G.phase=='race'&&(!G.live||G.live.ent[0].skill==null))||(G.phase=='quali'&&!G.q)||(G.phase=='grid'&&!G.grid))G=fresh();if(!G.P){G.hum=G.me!=null?[G.me]:[];G.np=G.me!=null?1:0;G.names=['Jugador 1'];G.cur=0;G.P=[mkP()];PF.forEach(f=>G.P[0][f]=G[f])}if(G.hold==null)G.hold=false;if(!G.comp)G.comp=[1,1];if(!G.qpush)G.qpush=[1,1];if(!G.wx)G.wx=genWx();ensure();render();
